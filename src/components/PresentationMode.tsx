@@ -1,21 +1,16 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Node, Edge } from 'reactflow';
 import GestureRecognizer, { GestureResult } from './GestureRecognizer';
-import { TextSlide } from './slides/TextSlide';
-import { ImageSlide } from './slides/ImageSlide';
-import { VideoSlide } from './slides/VideoSlide';
-import { ApiSlide } from './slides/ApiSlide';
-import { SettingsPanel } from './SettingsPanel';
-import { GesturesList } from './GesturesList';
-import { useZoom } from '../hooks/useZoom';
-import { useVideoControls } from '../hooks/useVideoControls';
-import { GestureThresholds, SlideNodeData } from '../types/workflow';
 
 type Props = {
   workflow: {
-    nodes: Node<SlideNodeData>[];
+    nodes: Node[];
     edges: Edge[];
   };
+};
+
+type GestureThresholds = {
+  [key: string]: number;
 };
 
 const THRESHOLDS_STORAGE_KEY = 'gesture_calibration_thresholds';
@@ -26,7 +21,12 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [isCalibrating, setIsCalibrating] = useState(true);
   const [showGestures, setShowGestures] = useState(true);
   const [showWebcam, setShowWebcam] = useState(true);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomPoint, setZoomPoint] = useState<{ x: number; y: number } | null>(null);
+  const zoomAnimationRef = useRef<number>();
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 4;
+  const ZOOM_SPEED = 0.05;
   const [thresholds, setThresholds] = useState<GestureThresholds>(() => {
     try {
       const saved = localStorage.getItem(THRESHOLDS_STORAGE_KEY);
@@ -46,10 +46,46 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       return {};
     }
   });
-
+  const [apiResponse, setApiResponse] = useState<any>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const SCRUB_AMOUNT = 5; // seconds to scrub forward/backward
+  const PLAY_PAUSE_DELAY = 1000; // 1 second delay between play/pause gestures
+  const lastPlayPauseTime = useRef<number>(0);
+  
   const currentNode = workflow.nodes.find(n => n.id === currentNodeId);
-  const { zoomLevel, zoomPoint, setZoomPoint, handleZoom, resetZoom } = useZoom();
-  const { handlePlayPause, handleScrubForward, handleScrubBackward } = useVideoControls();
+
+  // Handle continuous zoom
+  useEffect(() => {
+    return () => {
+      if (zoomAnimationRef.current) {
+        cancelAnimationFrame(zoomAnimationRef.current);
+      }
+    };
+  }, []);
+
+  const handleZoom = useCallback((direction: 'in' | 'out') => {
+    if (zoomAnimationRef.current) {
+      cancelAnimationFrame(zoomAnimationRef.current);
+    }
+
+    const animate = () => {
+      setZoomLevel(current => {
+        const newZoom = direction === 'in' 
+          ? Math.min(current + ZOOM_SPEED, MAX_ZOOM)
+          : Math.max(current - ZOOM_SPEED, MIN_ZOOM);
+        
+        if ((direction === 'in' && newZoom < MAX_ZOOM) || 
+            (direction === 'out' && newZoom > MIN_ZOOM)) {
+          zoomAnimationRef.current = requestAnimationFrame(animate);
+        }
+        
+        return newZoom;
+      });
+    };
+
+    zoomAnimationRef.current = requestAnimationFrame(animate);
+  }, []);
 
   const handleGesture = useCallback((result: GestureResult) => {
     // Find edges that start from current node
@@ -61,13 +97,27 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     // Handle video control gestures
     if (currentNode?.data?.type === 'video' && videoRef.current) {
       if (result.gesture === currentNode.data.playPauseGesture) {
-        handlePlayPause(videoRef.current);
+        const now = Date.now();
+        if (now - lastPlayPauseTime.current >= PLAY_PAUSE_DELAY) {
+          if (videoRef.current.paused) {
+            videoRef.current.play();
+          } else {
+            videoRef.current.pause();
+          }
+          lastPlayPauseTime.current = now;
+        }
         return;
       } else if (result.gesture === currentNode.data.scrubForwardGesture) {
-        handleScrubForward(videoRef.current);
+        videoRef.current.currentTime = Math.min(
+          videoRef.current.currentTime + SCRUB_AMOUNT,
+          videoRef.current.duration
+        );
         return;
       } else if (result.gesture === currentNode.data.scrubBackwardGesture) {
-        handleScrubBackward(videoRef.current);
+        videoRef.current.currentTime = Math.max(
+          videoRef.current.currentTime - SCRUB_AMOUNT,
+          0
+        );
         return;
       }
     }
@@ -87,10 +137,12 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
 
     // Handle transitions
     if (possibleTransitions.length > 0) {
-      resetZoom();
+      // Reset zoom when transitioning
+      setZoomLevel(1);
+      setZoomPoint(null);
       setCurrentNodeId(possibleTransitions[0].target);
     }
-  }, [currentNodeId, workflow.edges, currentNode, handleZoom, setZoomPoint, resetZoom, handlePlayPause, handleScrubForward, handleScrubBackward]);
+  }, [currentNodeId, workflow.edges, currentNode, handleZoom]);
 
   const handleCalibrationComplete = useCallback(() => {
     setIsCalibrating(false);
@@ -104,6 +156,45 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       console.error('Failed to save thresholds:', e);
     }
   }, []);
+
+  useEffect(() => {
+    const executeApiCall = async () => {
+      if (currentNode?.data?.type === 'api') {
+        try {
+          setApiError(null);
+          setApiResponse(null);
+          
+          // Add CORS proxy
+          const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+          const apiUrl = currentNode.data.apiEndpoint!;
+          const fullUrl = apiUrl.startsWith('http') ? corsProxy + apiUrl : apiUrl;
+
+          const response = await fetch(fullUrl, {
+            method: currentNode.data.apiMethod || 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Origin': window.location.origin,
+            },
+            body: currentNode.data.apiPayload ? JSON.parse(currentNode.data.apiPayload) : undefined,
+          });
+
+          if (!response.ok) {
+            throw new Error(`API call failed: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          setApiResponse(data);
+        } catch (error) {
+          setApiError(error instanceof Error ? error.message : 'Failed to execute API call');
+          console.error('API call error:', error);
+        }
+      }
+    };
+
+    executeApiCall();
+  }, [currentNode]);
+
+  const outgoingEdges = workflow.edges.filter(e => e.source === currentNodeId);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -178,17 +269,89 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       )}
 
       {showSettings && !isCalibrating && (
-        <SettingsPanel
-          showGestures={showGestures}
-          showWebcam={showWebcam}
-          thresholds={thresholds}
-          onShowGesturesChange={setShowGestures}
-          onShowWebcamChange={setShowWebcam}
-          onClose={() => setShowSettings(false)}
-        />
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'white',
+          padding: '20px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 100,
+          minWidth: '300px'
+        }}>
+          <h3 style={{ marginTop: 0 }}>Settings</h3>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showGestures}
+                onChange={(e) => setShowGestures(e.target.checked)}
+                style={{ marginRight: '10px' }}
+              />
+              Show Available Gestures
+            </label>
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showWebcam}
+                onChange={(e) => setShowWebcam(e.target.checked)}
+                style={{ marginRight: '10px' }}
+              />
+              Show Webcam Preview
+            </label>
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>Gesture Thresholds:</div>
+            <div style={{ 
+              maxHeight: '150px', 
+              overflowY: 'auto',
+              background: '#f5f5f5',
+              borderRadius: '4px',
+              padding: '10px'
+            }}>
+              {Object.entries(thresholds).map(([gesture, threshold]) => (
+                <div key={gesture} style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '5px 0'
+                }}>
+                  <span>{gesture.replace('_', ' ')}</span>
+                  <span style={{ 
+                    color: '#666',
+                    background: '#fff',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.9em'
+                  }}>
+                    {(threshold * 100).toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => setShowSettings(false)}
+            style={{
+              padding: '8px 16px',
+              background: '#ff0072',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              width: '100%'
+            }}
+          >
+            Close
+          </button>
+        </div>
       )}
 
-      {!isCalibrating && currentNode && (
+      {!isCalibrating && (
         <div style={{ 
           width: '100%', 
           height: '100%', 
@@ -208,31 +371,131 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
               : 'center center',
             transition: 'transform 0.1s ease-out'
           }}>
-            {currentNode.data.label}
+            {currentNode?.data?.label || 'No content'}
           </div>
-
-          {currentNode.data.type === 'text' && (
-            <TextSlide data={currentNode.data} zoomLevel={zoomLevel} zoomPoint={zoomPoint} />
+          {currentNode?.data?.type === 'image' ? (
+            <div style={{
+              maxWidth: '800px',
+              width: '100%',
+              marginBottom: '20px',
+              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+              transformOrigin: zoomPoint 
+                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                : 'center center',
+              transition: 'transform 0.1s ease-out'
+            }}>
+              <img 
+                src={currentNode.data.url} 
+                alt={currentNode.data.label}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}
+              />
+            </div>
+          ) : currentNode?.data?.type === 'video' ? (
+            <div style={{
+              maxWidth: '800px',
+              width: '100%',
+              marginBottom: '20px',
+              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+              transformOrigin: zoomPoint 
+                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                : 'center center',
+              transition: 'transform 0.1s ease-out'
+            }}>
+              <video
+                ref={videoRef}
+                src={currentNode.data.videoUrl}
+                controls
+                autoPlay={currentNode.data.autoplay}
+                loop={currentNode.data.loop}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}
+              />
+              {showGestures}
+            </div>
+          ) : currentNode?.data?.type === 'api' ? (
+            <>
+              {apiError && (
+                <div style={{
+                  color: '#ff0072',
+                  padding: '10px',
+                  background: '#fff0f4',
+                  borderRadius: '4px',
+                  marginTop: '10px',
+                  maxWidth: '800px',
+                  width: '100%'
+                }}>
+                  <strong>Error:</strong> {apiError}
+                </div>
+              )}
+              {apiResponse && (
+                <div style={{
+                  marginTop: '20px',
+                  maxWidth: '800px',
+                  width: '100%'
+                }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>API Response:</div>
+                  <pre style={{
+                    background: '#f8f8f8',
+                    padding: '15px',
+                    borderRadius: '8px',
+                    overflow: 'auto',
+                    maxHeight: '300px'
+                  }}>
+                    {JSON.stringify(apiResponse, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ 
+              fontSize: '1.2em',
+              marginBottom: '20px',
+              whiteSpace: 'pre-wrap',
+              maxWidth: '800px',
+              textAlign: 'left'
+            }}>
+              {currentNode?.data?.content}
+            </div>
           )}
-
-          {currentNode.data.type === 'image' && (
-            <ImageSlide data={currentNode.data} zoomLevel={zoomLevel} zoomPoint={zoomPoint} />
-          )}
-
-          {currentNode.data.type === 'video' && (
-            <VideoSlide ref={videoRef} data={currentNode.data} zoomLevel={zoomLevel} zoomPoint={zoomPoint} />
-          )}
-
-          {currentNode.data.type === 'api' && (
-            <ApiSlide data={currentNode.data} />
-          )}
-
           {showGestures && (
-            <GesturesList
-              currentNodeId={currentNodeId}
-              edges={workflow.edges}
-              nodes={workflow.nodes}
-            />
+            <div style={{ 
+              marginTop: '20px', 
+              padding: '15px',
+              background: 'rgba(240,240,240,0.9)',
+              borderRadius: '8px',
+              maxWidth: '400px',
+              width: '100%'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#666' }}>
+                Available Gestures:
+              </div>
+              {outgoingEdges.map(edge => (
+                <div key={edge.id} style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#ff0072', fontWeight: 'bold' }}>
+                    {edge.data?.gesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>{workflow.nodes.find(n => n.id === edge.target)?.data.label}</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
