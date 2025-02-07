@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Node, Edge } from 'reactflow';
 import GestureRecognizer, { GestureResult } from './GestureRecognizer';
 
@@ -21,6 +21,12 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [isCalibrating, setIsCalibrating] = useState(true);
   const [showGestures, setShowGestures] = useState(true);
   const [showWebcam, setShowWebcam] = useState(true);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomPoint, setZoomPoint] = useState<{ x: number; y: number } | null>(null);
+  const zoomAnimationRef = useRef<number>();
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 4;
+  const ZOOM_SPEED = 0.05;
   const [thresholds, setThresholds] = useState<GestureThresholds>(() => {
     try {
       const saved = localStorage.getItem(THRESHOLDS_STORAGE_KEY);
@@ -42,8 +48,44 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   });
   const [apiResponse, setApiResponse] = useState<any>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const SCRUB_AMOUNT = 5; // seconds to scrub forward/backward
+  const PLAY_PAUSE_DELAY = 1000; // 1 second delay between play/pause gestures
+  const lastPlayPauseTime = useRef<number>(0);
   
   const currentNode = workflow.nodes.find(n => n.id === currentNodeId);
+
+  // Handle continuous zoom
+  useEffect(() => {
+    return () => {
+      if (zoomAnimationRef.current) {
+        cancelAnimationFrame(zoomAnimationRef.current);
+      }
+    };
+  }, []);
+
+  const handleZoom = useCallback((direction: 'in' | 'out') => {
+    if (zoomAnimationRef.current) {
+      cancelAnimationFrame(zoomAnimationRef.current);
+    }
+
+    const animate = () => {
+      setZoomLevel(current => {
+        const newZoom = direction === 'in' 
+          ? Math.min(current + ZOOM_SPEED, MAX_ZOOM)
+          : Math.max(current - ZOOM_SPEED, MIN_ZOOM);
+        
+        if ((direction === 'in' && newZoom < MAX_ZOOM) || 
+            (direction === 'out' && newZoom > MIN_ZOOM)) {
+          zoomAnimationRef.current = requestAnimationFrame(animate);
+        }
+        
+        return newZoom;
+      });
+    };
+
+    zoomAnimationRef.current = requestAnimationFrame(animate);
+  }, []);
 
   const handleGesture = useCallback((result: GestureResult) => {
     // Find edges that start from current node
@@ -52,11 +94,55 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       e.data?.gesture === result.gesture
     );
     
-    // If we found a matching gesture transition from current node, follow it
+    // Handle video control gestures
+    if (currentNode?.data?.type === 'video' && videoRef.current) {
+      if (result.gesture === currentNode.data.playPauseGesture) {
+        const now = Date.now();
+        if (now - lastPlayPauseTime.current >= PLAY_PAUSE_DELAY) {
+          if (videoRef.current.paused) {
+            videoRef.current.play();
+          } else {
+            videoRef.current.pause();
+          }
+          lastPlayPauseTime.current = now;
+        }
+        return;
+      } else if (result.gesture === currentNode.data.scrubForwardGesture) {
+        videoRef.current.currentTime = Math.min(
+          videoRef.current.currentTime + SCRUB_AMOUNT,
+          videoRef.current.duration
+        );
+        return;
+      } else if (result.gesture === currentNode.data.scrubBackwardGesture) {
+        videoRef.current.currentTime = Math.max(
+          videoRef.current.currentTime - SCRUB_AMOUNT,
+          0
+        );
+        return;
+      }
+    }
+
+    // Handle zoom gestures
+    if (currentNode?.data.zoomPoint) {
+      if (result.gesture === currentNode.data.zoomInGesture) {
+        setZoomPoint(currentNode.data.zoomPoint);
+        handleZoom('in');
+        return;
+      } else if (result.gesture === currentNode.data.zoomOutGesture) {
+        setZoomPoint(currentNode.data.zoomPoint);
+        handleZoom('out');
+        return;
+      }
+    }
+
+    // Handle transitions
     if (possibleTransitions.length > 0) {
+      // Reset zoom when transitioning
+      setZoomLevel(1);
+      setZoomPoint(null);
       setCurrentNodeId(possibleTransitions[0].target);
     }
-  }, [currentNodeId, workflow.edges]);
+  }, [currentNodeId, workflow.edges, currentNode, handleZoom]);
 
   const handleCalibrationComplete = useCallback(() => {
     setIsCalibrating(false);
@@ -273,11 +359,17 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
           flexDirection: 'column',
           alignItems: 'center', 
           justifyContent: 'center',
-          padding: '20px'
+          padding: '20px',
+          overflow: 'hidden'
         }}>
           <div style={{ 
             fontSize: '2em',
-            marginBottom: '20px'
+            marginBottom: '20px',
+            transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+            transformOrigin: zoomPoint 
+              ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+              : 'center center',
+            transition: 'transform 0.1s ease-out'
           }}>
             {currentNode?.data?.label || 'No content'}
           </div>
@@ -285,7 +377,12 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
             <div style={{
               maxWidth: '800px',
               width: '100%',
-              marginBottom: '20px'
+              marginBottom: '20px',
+              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+              transformOrigin: zoomPoint 
+                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                : 'center center',
+              transition: 'transform 0.1s ease-out'
             }}>
               <img 
                 src={currentNode.data.url} 
@@ -297,6 +394,32 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                 }}
               />
+            </div>
+          ) : currentNode?.data?.type === 'video' ? (
+            <div style={{
+              maxWidth: '800px',
+              width: '100%',
+              marginBottom: '20px',
+              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+              transformOrigin: zoomPoint 
+                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                : 'center center',
+              transition: 'transform 0.1s ease-out'
+            }}>
+              <video
+                ref={videoRef}
+                src={currentNode.data.videoUrl}
+                controls
+                autoPlay={currentNode.data.autoplay}
+                loop={currentNode.data.loop}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}
+              />
+              {showGestures}
             </div>
           ) : currentNode?.data?.type === 'api' ? (
             <>

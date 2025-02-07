@@ -25,9 +25,19 @@ export type SlideNodeData = {
   content: string;
   type: 'text' | 'image' | 'video' | 'api';
   url?: string;
+  videoUrl?: string;
+  autoplay?: boolean;
+  loop?: boolean;
+  // Video control gestures
+  playPauseGesture?: string;
+  scrubForwardGesture?: string;
+  scrubBackwardGesture?: string;
   apiEndpoint?: string;
   apiMethod?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   apiPayload?: string;
+  zoomPoint?: { x: number; y: number };
+  zoomInGesture?: string;
+  zoomOutGesture?: string;
 };
 
 const BaseNodeStyle = {
@@ -93,6 +103,62 @@ const ImageNode = ({ data, selected }: NodeProps<SlideNodeData>) => {
       )}
       <div style={{ fontSize: '0.8em', color: '#4CAF50', marginTop: '5px' }}>
         Image Slide
+      </div>
+      <Handle 
+        type="source" 
+        position={Position.Right}
+        style={{ width: '12px', height: '12px', background: '#555' }} 
+      />
+    </div>
+  );
+};
+
+const VideoNode = ({ data, selected }: NodeProps<SlideNodeData>) => {
+  return (
+    <div style={{ 
+      ...BaseNodeStyle,
+      borderColor: selected ? '#ff0072' : '#9C27B0',
+    }}>
+      <Handle 
+        type="target" 
+        position={Position.Left}
+        style={{ width: '12px', height: '12px', background: '#555' }} 
+      />
+      <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>{data.label}</div>
+      {data.videoUrl && (
+        <div style={{ 
+          width: '100%', 
+          height: '100px',
+          background: '#f0f0f0',
+          marginBottom: '8px',
+          borderRadius: '4px',
+          overflow: 'hidden',
+          position: 'relative'
+        }}>
+          <video
+            src={data.videoUrl}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover'
+            }}
+          />
+          <div style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: '4px 8px',
+            background: 'rgba(0,0,0,0.5)',
+            color: 'white',
+            fontSize: '0.8em'
+          }}>
+            {data.autoplay ? 'Autoplay' : 'Click to play'} {data.loop ? '• Loop' : ''}
+          </div>
+        </div>
+      )}
+      <div style={{ fontSize: '0.8em', color: '#9C27B0', marginTop: '5px' }}>
+        Video Slide
       </div>
       <Handle 
         type="source" 
@@ -185,6 +251,7 @@ const GestureEdge = ({
 const nodeTypes = {
   textNode: TextNode,
   imageNode: ImageNode,
+  videoNode: VideoNode,
   apiNode: APINode,
 };
 
@@ -205,6 +272,7 @@ const AVAILABLE_GESTURES = [
 const NODE_TYPES = [
   { id: 'textNode', label: 'Text Slide', color: '#777' },
   { id: 'imageNode', label: 'Image Slide', color: '#4CAF50' },
+  { id: 'videoNode', label: 'Video Slide', color: '#9C27B0' },
   { id: 'apiNode', label: 'API Action', color: '#2196F3' },
 ];
 
@@ -350,7 +418,21 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
       data: { 
         label: `New ${NODE_TYPES.find(t => t.id === type)?.label}`, 
         content: '',
-        type: type === 'apiNode' ? 'api' : type === 'imageNode' ? 'image' : 'text'
+        type: type === 'apiNode' ? 'api' : 
+              type === 'imageNode' ? 'image' : 
+              type === 'videoNode' ? 'video' : 
+              'text',
+        // Initialize with empty values based on type
+        ...(type === 'videoNode' ? { 
+          videoUrl: '', 
+          autoplay: false, 
+          loop: false,
+          playPauseGesture: '',
+          scrubForwardGesture: '',
+          scrubBackwardGesture: ''
+        } : {}),
+        ...(type === 'imageNode' ? { url: '' } : {}),
+        ...(type === 'apiNode' ? { apiEndpoint: '', apiMethod: 'GET', apiPayload: '' } : {})
       },
       position: {
         x: Math.random() * 300 + 100,
@@ -603,6 +685,115 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
             </div>
           )}
 
+          {nodeForm.type === 'video' && (
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Video URL:</label>
+              <input
+                type="text"
+                value={nodeForm.videoUrl || ''}
+                onChange={(e) => handleNodeFormChange({ videoUrl: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+              {nodeForm.videoUrl && (
+                <video 
+                  src={nodeForm.videoUrl}
+                  controls
+                  style={{
+                    width: '100%',
+                    marginTop: '10px',
+                    borderRadius: '4px'
+                  }}
+                />
+              )}
+              <div style={{ marginTop: '10px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', marginBottom: '5px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={nodeForm.autoplay || false}
+                    onChange={(e) => handleNodeFormChange({ autoplay: e.target.checked })}
+                    style={{ marginRight: '8px' }}
+                  />
+                  Autoplay
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={nodeForm.loop || false}
+                    onChange={(e) => handleNodeFormChange({ loop: e.target.checked })}
+                    style={{ marginRight: '8px' }}
+                  />
+                  Loop video
+                </label>
+              </div>
+
+              <div style={{ marginTop: '20px' }}>
+                <h4 style={{ marginBottom: '10px' }}>Video Control Gestures</h4>
+                
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px' }}>Play/Pause Gesture:</label>
+                  <select
+                    value={nodeForm.playPauseGesture || ''}
+                    onChange={(e) => handleNodeFormChange({ playPauseGesture: e.target.value })}
+                    style={{ 
+                      width: '100%', 
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    <option value="">Select a gesture...</option>
+                    {AVAILABLE_GESTURES.map(gesture => (
+                      <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px' }}>Scrub Forward Gesture:</label>
+                  <select
+                    value={nodeForm.scrubForwardGesture || ''}
+                    onChange={(e) => handleNodeFormChange({ scrubForwardGesture: e.target.value })}
+                    style={{ 
+                      width: '100%', 
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    <option value="">Select a gesture...</option>
+                    {AVAILABLE_GESTURES.map(gesture => (
+                      <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px' }}>Scrub Backward Gesture:</label>
+                  <select
+                    value={nodeForm.scrubBackwardGesture || ''}
+                    onChange={(e) => handleNodeFormChange({ scrubBackwardGesture: e.target.value })}
+                    style={{ 
+                      width: '100%', 
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    <option value="">Select a gesture...</option>
+                    {AVAILABLE_GESTURES.map(gesture => (
+                      <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
           {nodeForm.type === 'api' && (
             <>
               <div style={{ marginBottom: '15px' }}>
@@ -657,6 +848,87 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
               </div>
             </>
           )}
+
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Zoom Point:</label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input
+                type="number"
+                placeholder="X %"
+                value={nodeForm.zoomPoint?.x || ''}
+                onChange={(e) => handleNodeFormChange({ 
+                  zoomPoint: { 
+                    x: Number(e.target.value), 
+                    y: nodeForm.zoomPoint?.y || 50 
+                  } 
+                })}
+                style={{
+                  width: '50%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+              <input
+                type="number"
+                placeholder="Y %"
+                value={nodeForm.zoomPoint?.y || ''}
+                onChange={(e) => handleNodeFormChange({ 
+                  zoomPoint: { 
+                    x: nodeForm.zoomPoint?.x || 50, 
+                    y: Number(e.target.value) 
+                  } 
+                })}
+                style={{
+                  width: '50%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            <div style={{ fontSize: '0.8em', color: '#666', marginTop: '5px' }}>
+              Enter values between 0-100 to set the zoom center point
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Zoom In Gesture:</label>
+              <select
+                value={nodeForm.zoomInGesture || ''}
+                onChange={(e) => handleNodeFormChange({ zoomInGesture: e.target.value })}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Select a gesture...</option>
+                {AVAILABLE_GESTURES.map(gesture => (
+                  <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Zoom Out Gesture:</label>
+              <select
+                value={nodeForm.zoomOutGesture || ''}
+                onChange={(e) => handleNodeFormChange({ zoomOutGesture: e.target.value })}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Select a gesture...</option>
+                {AVAILABLE_GESTURES.map(gesture => (
+                  <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           <button
             onClick={() => {
