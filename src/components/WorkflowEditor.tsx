@@ -486,6 +486,28 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
               ))}
             </select>
           </div>
+          <button
+            onClick={() => {
+              setEdges(eds => {
+                const filtered = eds.filter(e => e.id !== selectedEdge.id);
+                onWorkflowUpdate?.({ nodes, edges: filtered });
+                return filtered;
+              });
+              setSelectedEdge(null);
+            }}
+            style={{
+              padding: '8px 16px',
+              background: '#ff0072',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              width: '100%',
+              marginTop: '15px'
+            }}
+          >
+            Delete Connection
+          </button>
         </div>
       )}
 
@@ -504,6 +526,20 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          <button
+            onClick={() => setSelectedNode(null)}
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              background: 'none',
+              border: 'none',
+              fontSize: '20px',
+              cursor: 'pointer'
+            }}
+          >
+            ×
+          </button>
           <h3 style={{ marginTop: 0 }}>Edit Node</h3>
           <div style={{ marginBottom: '15px' }}>
             <label style={{ display: 'block', marginBottom: '5px' }}>Label:</label>
