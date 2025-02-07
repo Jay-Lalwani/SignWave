@@ -136,7 +136,7 @@ const GestureRecognizerComponent: React.FC<Props> = ({
                       setGestureThresholds(prev => {
                         const updated = {
                           ...prev,
-                          [expectedGesture]: Math.min(avgConfidence * 0.8, 0.8)
+                          [expectedGesture]: Math.min(avgConfidence * 0.6, 0.6)
                         };
                         onThresholdsUpdate?.(updated);
                         return updated;
