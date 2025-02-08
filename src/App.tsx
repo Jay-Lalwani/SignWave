@@ -2,6 +2,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import './App.css';
 import WorkflowEditor, { WorkflowData } from './components/WorkflowEditor';
 import PresentationMode from './components/PresentationMode';
+import GeneratePresentationModal from './components/GeneratePresentationModal';
+import { generatePresentationWorkflow } from './components/GeneratePresentationWorkflow';
 
 type Mode = 'edit' | 'present';
 
@@ -24,7 +26,6 @@ function App() {
     if (!saved) return defaultWorkflow;
     try {
       const parsed = JSON.parse(saved);
-      // Ensure the parsed data has the correct structure
       if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
         return parsed;
       }
@@ -35,7 +36,7 @@ function App() {
     }
   });
 
-  // Save workflow whenever it changes
+  // Save workflow changes to localStorage.
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(workflow));
@@ -48,12 +49,36 @@ function App() {
     setWorkflow(newWorkflow);
   }, []);
 
+  // State to control the generate presentation modal.
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+
+  // Function to generate the presentation workflow from the user's prompt.
+  const handleGeneratePresentation = async (prompt: string) => {
+    try {
+      const generatedWorkflow = await generatePresentationWorkflow(prompt);
+      if (generatedWorkflow && Array.isArray(generatedWorkflow.nodes) && Array.isArray(generatedWorkflow.edges)) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedWorkflow));
+        setWorkflow(generatedWorkflow);
+      } else {
+        console.error("Generated workflow does not match expected format.");
+      }
+    } catch (error) {
+      console.error("Error generating presentation:", error);
+    }
+    setShowGenerateModal(false);
+  };
+
   return (
     <div className="App">
       <header className="App-header">
         <button onClick={() => setMode(mode === 'edit' ? 'present' : 'edit')}>
           Switch to {mode === 'edit' ? 'Presentation' : 'Edit'} Mode
         </button>
+        {mode === 'edit' && (
+          <button onClick={() => setShowGenerateModal(true)}>
+            Generate Presentation
+          </button>
+        )}
       </header>
       <main>
         {mode === 'edit' ? (
@@ -62,6 +87,12 @@ function App() {
           <PresentationMode workflow={workflow} />
         )}
       </main>
+      {showGenerateModal && (
+        <GeneratePresentationModal
+          onGenerate={handleGeneratePresentation}
+          onClose={() => setShowGenerateModal(false)}
+        />
+      )}
     </div>
   );
 }
