@@ -164,7 +164,7 @@ Note: Do NOT use only one type of node. Do NOT provide any additional text in yo
   // Initialize the OpenAI client.
   const client = new openai.OpenAI({
     baseURL: "https://api.ai.it.cornell.edu",
-    apiKey: "sk-ZmTOaxcK9_My_f-kiuT5sQ",
+    apiKey: "",
     dangerouslyAllowBrowser: true,
     // The API key is expected via process.env.OPENAI_API_KEY.
   });
