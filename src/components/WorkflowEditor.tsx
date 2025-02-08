@@ -798,7 +798,7 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
               {nodeForm.splineScene && isValidUrl(nodeForm.splineScene) && (
                 <div style={{ 
                   width: '100%',
-                  height: '200px',
+                  height: '400px',
                   marginTop: '10px',
                   borderRadius: '4px',
                   overflow: 'hidden',

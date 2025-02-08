@@ -89,7 +89,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     const allObjects = splineApp.getAllObjects();
 
     //manually put the names of the spline objects :(
-    const obj = allObjects.find(obj => obj.name === 'chips' || obj.name === 'Bot' || obj.name === 'Scene');
+    const obj = allObjects.find(obj => obj.name === 'chips' || obj.name === 'Bot' || obj.name === 'Scene'|| obj.name === 'Text');
      
     if (obj) {
       const degrees = currentNode.data.rotationDegree[direction];
