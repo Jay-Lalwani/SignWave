@@ -54,7 +54,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const SCRUB_AMOUNT = 5; // seconds to scrub forward/backward
   const PLAY_PAUSE_DELAY = 1000; // 1 second delay between play/pause gestures
   const lastPlayPauseTime = useRef<number>(0);
-  const [splineApp, setSplineApp] = useState<Application | null>(null);
+  const [splineApps, setSplineApps] = useState<{ [key: string]: Application }>({});
   const [currentZoom, setCurrentZoom] = useState(1.0);
   
   const currentNode = workflow.nodes.find(n => n.id === currentNodeId);
@@ -69,27 +69,28 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   }, []);
 
   const handleRotation = useCallback((direction: 'left' | 'right') => {
-    if (!currentNode?.data?.rotationDegree?.[direction]) {
+    if (!currentNode?.data?.rotationDegree?.[direction] || !currentNode.data.splineScene) {
+      console.log('Missing rotation data or scene URL');
       return;
     }
     
+    const splineApp = splineApps[currentNode.data.splineScene];
     if (!splineApp) {
-      console.log('No splineApp found');
+      console.log('No splineApp found for scene:', currentNode.data.splineScene);
       return;
-    }
-
-    const obj = splineApp.findObjectById('831d45ec-ad9a-4c09-a588-70b67dd0d781');
+    } 
+    
+    const objects = splineApp.getAllObjects();
+    const obj = objects?.[0];
     if (obj) {
       const degrees = currentNode.data.rotationDegree[direction];
+      console.log('Rotating', direction, 'with degrees:', degrees);
       
-      // Apply rotation with direction
       const xMultiplier = direction === 'left' ? -1 : 1;
       obj.rotation.x += (degrees.x * Math.PI * xMultiplier) / 180;
       obj.rotation.y += (degrees.y * Math.PI * xMultiplier) / 180;
-    } else {
-      
     }
-  }, [currentNode?.data?.rotationDegree, splineApp]);
+  }, [currentNode?.data?.rotationDegree, currentNode?.data?.splineScene, splineApps]);
 
   const handleZoom = useCallback((direction: 'in' | 'out') => {
     if (zoomAnimationRef.current) {
@@ -115,7 +116,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   }, []);
 
   const handleSplineZoom = useCallback((direction: 'in' | 'out') => {
-    if (splineApp) {
+    if (splineApps[currentNode?.data?.splineScene]) {
       // Cancel any existing zoom animation
       if (zoomAnimationRef.current) {
         cancelAnimationFrame(zoomAnimationRef.current);
@@ -135,7 +136,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
           return;
         }
 
-        splineApp.setZoom(newZoom);
+        splineApps[currentNode?.data?.splineScene].setZoom(newZoom);
         setCurrentZoom(newZoom);
 
         zoomAnimationRef.current = requestAnimationFrame(animate);
@@ -143,7 +144,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
 
       zoomAnimationRef.current = requestAnimationFrame(animate);
     }
-  }, [splineApp, currentZoom]);
+  }, [splineApps, currentNode?.data?.splineScene, currentZoom]);
 
   const handleGesture = useCallback((result: GestureResult) => {
     // Find edges that start from current node
@@ -550,10 +551,11 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                 <Spline 
                   scene={currentNode.data.splineScene}
                   onLoad={(splineApp) => {
-                    // debugger findObjectById
-                    // console.log('Available object:', 
-                    //   splineApp.findObjectById('831d45ec-ad9a-4c09-a588-70b67dd0d781'));
-                    setSplineApp(splineApp);
+                    console.log('Spline scene loaded:', currentNode.data.splineScene);
+                    setSplineApps(prev => ({
+                      ...prev,
+                      [currentNode.data.splineScene]: splineApp
+                    }));
                   }}
                 />
               )}

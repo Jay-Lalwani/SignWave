@@ -147,24 +147,32 @@ const ComplexObjectNode = ({ data, selected }: NodeProps<SlideNodeData>) => {
           background: '#f0f0f0',
           marginBottom: '8px',
           borderRadius: '4px',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          position: 'relative'
         }}> 
-        <Spline 
-        scene={data.splineScene}
-        onLoad={() => console.log('Spline scene loaded')}
-        />
+          <Spline 
+            style={{
+              width: '100%',
+              height: '100%',
+              position: 'absolute',
+              top: 0,
+              left: 0
+            }}
+            scene={data.splineScene}
+            onLoad={() => console.log('Spline scene loaded')}
+          />
+        </div>
+      )}
+      <div style={{ fontSize: '0.8em', color: '#FF9800', marginTop: '5px' }}>
+        Complex Object
+      </div>
+      <Handle 
+        type="source" 
+        position={Position.Right}
+        style={{ width: '12px', height: '12px', background: '#555' }} 
+      />
     </div>
-  )}
-  <div style={{ fontSize: '0.8em', color: '#FF9800', marginTop: '5px' }}>
-    Complex Object
-  </div>
-  <Handle 
-    type="source" 
-    position={Position.Right}
-    style={{ width: '12px', height: '12px', background: '#555' }} 
-  />
-</div>
-);
+  );
 };
 
 const VideoNode = ({ data, selected }: NodeProps<SlideNodeData>) => {
@@ -786,7 +794,7 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                 {/* Left Rotation */}
                 <div style={{ marginTop: '15px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Left Rotation:</label>
-                  <select
+                <select
                     value={nodeForm.rotationGesture?.left || ''}
                     onChange={(e) => handleNodeFormChange({ 
                       rotationGesture: { 
@@ -794,19 +802,19 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                         left: e.target.value 
                       }
                     })}
-                    style={{ 
-                      width: '100%', 
-                      padding: '8px',
-                      border: '1px solid #ddd',
+                  style={{ 
+                    width: '100%', 
+                    padding: '8px',
+                    border: '1px solid #ddd',
                       borderRadius: '4px',
                       marginBottom: '10px'
-                    }}
-                  >
-                    <option value="">Select a gesture...</option>
-                    {AVAILABLE_GESTURES.map(gesture => (
-                      <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
-                    ))}
-                  </select>
+                  }}
+                >
+                  <option value="">Select a gesture...</option>
+                  {AVAILABLE_GESTURES.map(gesture => (
+                    <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                  ))}
+                </select>
 
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <input
@@ -852,7 +860,7 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                       }}
                     />
                   </div>
-                </div>
+              </div>
 
                 {/* Right Rotation */}
                 <div style={{ marginTop: '15px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
@@ -879,50 +887,50 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                     ))}
                   </select>
 
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <input
-                      type="number"
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input
+                    type="number"
                       min="0"
-                      placeholder="X rotation"
+                    placeholder="X rotation"
                       value={nodeForm.rotationDegree?.right?.x || ''}
-                      onChange={(e) => handleNodeFormChange({ 
-                        rotationDegree: { 
+                    onChange={(e) => handleNodeFormChange({ 
+                      rotationDegree: { 
                           ...nodeForm.rotationDegree,
                           right: { 
                             x: Math.max(0, Number(e.target.value)),
                             y: nodeForm.rotationDegree?.right?.y || 0 
                           }
-                        } 
-                      })}
-                      style={{
-                        width: '50%',
-                        padding: '8px',
-                        border: '1px solid #ddd',
-                        borderRadius: '4px'
-                      }}
-                    />
-                    <input
-                      type="number"
+                      } 
+                    })}
+                    style={{
+                      width: '50%',
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                  <input
+                    type="number"
                       min="0"
-                      placeholder="Y rotation"
+                    placeholder="Y rotation"
                       value={nodeForm.rotationDegree?.right?.y || ''}
-                      onChange={(e) => handleNodeFormChange({ 
-                        rotationDegree: { 
+                    onChange={(e) => handleNodeFormChange({ 
+                      rotationDegree: { 
                           ...nodeForm.rotationDegree,
                           right: { 
                             x: nodeForm.rotationDegree?.right?.x || 0,
                             y: Math.max(0, Number(e.target.value))
                           }
-                        } 
-                      })}
-                      style={{
-                        width: '50%',
-                        padding: '8px',
-                        border: '1px solid #ddd',
-                        borderRadius: '4px'
-                      }}
-                    />
-                  </div>
+                      } 
+                    })}
+                    style={{
+                      width: '50%',
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
                 </div>
               </div>
             </div>
