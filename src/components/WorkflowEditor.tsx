@@ -32,6 +32,7 @@ export type SlideNodeData = {
   playPauseGesture?: string;
   scrubForwardGesture?: string;
   scrubBackwardGesture?: string;
+  scrubAmount?: number; // seconds to scrub forward/backward
   apiEndpoint?: string;
   apiMethod?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   apiPayload?: string;
@@ -742,6 +743,24 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                   />
                   Loop video
                 </label>
+              </div>
+
+              <div style={{ marginTop: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px' }}>Scrub Amount (seconds):</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="Default: 5"
+                  value={nodeForm.scrubAmount || ''}
+                  onChange={(e) => handleNodeFormChange({ scrubAmount: Number(e.target.value) })}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px'
+                  }}
+                />
               </div>
 
               <div style={{ marginTop: '20px' }}>

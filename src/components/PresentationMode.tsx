@@ -49,7 +49,6 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [apiResponse, setApiResponse] = useState<any>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const SCRUB_AMOUNT = 5; // seconds to scrub forward/backward
   const PLAY_PAUSE_DELAY = 1000; // 1 second delay between play/pause gestures
   const lastPlayPauseTime = useRef<number>(0);
   
@@ -57,6 +56,11 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
 
   // Derive pointer mode from the current node; default to "laser"
   const pointerMode = currentNode?.data?.pointerMode || "laser";
+
+  // Get the current scrub amount or use default
+  const getScrubAmount = useCallback(() => {
+    return currentNode?.data?.scrubAmount || 5;
+  }, [currentNode]);
 
   // Handle continuous zoom
   useEffect(() => {
@@ -129,14 +133,16 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
         }
         return;
       } else if (result.gesture === currentNode.data.scrubForwardGesture) {
+        const scrubAmount = getScrubAmount();
         videoRef.current.currentTime = Math.min(
-          videoRef.current.currentTime + SCRUB_AMOUNT,
+          videoRef.current.currentTime + scrubAmount,
           videoRef.current.duration
         );
         return;
       } else if (result.gesture === currentNode.data.scrubBackwardGesture) {
+        const scrubAmount = getScrubAmount();
         videoRef.current.currentTime = Math.max(
-          videoRef.current.currentTime - SCRUB_AMOUNT,
+          videoRef.current.currentTime - scrubAmount,
           0
         );
         return;
@@ -161,7 +167,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       setZoomPoint(null);
       setCurrentNodeId(possibleTransitions[0].target);
     }
-  }, [currentNodeId, workflow.edges, currentNode, handleZoom]);
+  }, [currentNodeId, workflow.edges, currentNode, handleZoom, getScrubAmount]);
 
   const handleCalibrationComplete = useCallback(() => {
     setIsCalibrating(false);
