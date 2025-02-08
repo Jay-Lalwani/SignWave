@@ -2,8 +2,9 @@ import React, { useState, useCallback, useEffect } from 'react';
 import './App.css';
 import WorkflowEditor, { WorkflowData } from './components/WorkflowEditor';
 import PresentationMode from './components/PresentationMode';
+import { CADEditor } from './components/CADEditor';
 
-type Mode = 'edit' | 'present';
+type Mode = 'edit' | 'present' | 'cad';
 
 const STORAGE_KEY = 'gesture_presentation_workflow';
 
@@ -51,15 +52,27 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <button onClick={() => setMode(mode === 'edit' ? 'present' : 'edit')}>
-          Switch to {mode === 'edit' ? 'Presentation' : 'Edit'} Mode
-        </button>
+        <div className="mode-buttons">
+          <button onClick={() => setMode('edit')}>
+            Edit Mode
+          </button>
+          <button onClick={() => setMode('present')}>
+            Presentation Mode
+          </button>
+          <button onClick={() => setMode('cad')}>
+            CAD Editor
+          </button>
+        </div>
       </header>
       <main>
         {mode === 'edit' ? (
           <WorkflowEditor onWorkflowUpdate={handleWorkflowUpdate} initialWorkflow={workflow} />
-        ) : (
+        ) : mode === 'present' ? (
           <PresentationMode workflow={workflow} />
+        ) : (
+          <div style={{ width: '100%', height: 'calc(100vh - 60px)' }}>
+            <CADEditor />
+          </div>
         )}
       </main>
     </div>

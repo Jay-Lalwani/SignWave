@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
-import { GestureResult, GestureThresholds } from '../../types/gestures';
+import { GestureResult, GestureThresholds, GestureType } from '../../types/gestures';
 import { useGestureRecognition } from '../../hooks/useGestureRecognition';
 import { useGestureCalibration } from '../../hooks/useGestureCalibration';
 import CalibrationOverlay from './CalibrationOverlay';
@@ -63,33 +63,28 @@ const GestureRecognizerComponent: React.FC<GestureRecognizerProps> = ({
         if (video.readyState === 4 && video.currentTime !== lastVideoTime) {
           lastVideoTime = video.currentTime;
           try {
-            const result = gestureRecognizerRef.recognizeForVideo(
+            const recognizer = gestureRecognizerRef.current;
+            if (!recognizer) return;
+
+            const result = recognizer.recognizeForVideo(
               video,
               performance.now()
             );
 
-            if (result.gestures?.length && result.gestures[0]?.length) {
-              const topGesture = result.gestures[0][0];
+            if (result.gestures && result.gestures.length > 0) {
+              const topGesture = result.gestures[0];
 
               // Calibration mode
               if (isCalibrating) {
-                handleCalibrationSample({
-                  categoryName: topGesture.categoryName,
-                  score: topGesture.score
-                });
-              } 
+                handleCalibrationSample(topGesture.score);
+              }
               // Normal detection mode
               else if (topGesture.categoryName !== 'None') {
-                const threshold =
-                  gestureThresholds[topGesture.categoryName] ||
-                  DEFAULT_GESTURE_THRESHOLD;
-                if (topGesture.score >= threshold) {
-                  onGestureDetected?.({
-                    gesture: topGesture.categoryName,
-                    confidence: topGesture.score,
-                    timestamp: Date.now()
-                  });
-                }
+                onGestureDetected?.({
+                  gesture: topGesture.categoryName as GestureType,
+                  confidence: topGesture.score,
+                  timestamp: Date.now()
+                });
               }
             }
           } catch (error) {

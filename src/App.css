@@ -18,9 +18,10 @@
 
 .App-header {
   background-color: #282c34;
-  padding: 1rem;
+  padding: 20px;
+  color: white;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
 }
 
@@ -46,6 +47,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -55,4 +57,26 @@ main {
   flex: 1;
   background: #f0f0f0;
   position: relative;
+  height: calc(100vh - 80px);
+  overflow: hidden;
+}
+
+.mode-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.mode-buttons button {
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.mode-buttons button:hover {
+  background-color: #357abd;
 }

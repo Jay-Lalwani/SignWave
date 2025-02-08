@@ -181,32 +181,47 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
           setApiError(null);
           setApiResponse(null);
 
-          // Add CORS proxy
-          const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+          // Note: For production use, CORS should be handled by:
+          // 1. Configuring CORS headers on your API server
+          // 2. Using a controlled proxy server in your infrastructure
+          // 3. Or using environment-specific API endpoints
           const apiUrl = currentNode.data.apiEndpoint!;
-          const fullUrl = apiUrl.startsWith('http') ? corsProxy + apiUrl : apiUrl;
 
-          const response = await fetch(fullUrl, {
+          const response = await fetch(apiUrl, {
             method: currentNode.data.apiMethod || 'GET',
             headers: {
               'Content-Type': 'application/json',
-              Origin: window.location.origin
+              // Only include necessary headers - avoid security risks
+              ...(currentNode.data.apiHeaders || {})
             },
+            // Include credentials only if needed and the API supports it
+            credentials: currentNode.data.withCredentials ? 'include' : 'same-origin',
             body: currentNode.data.apiPayload
-              ? JSON.parse(currentNode.data.apiPayload)
+              ? JSON.stringify(JSON.parse(currentNode.data.apiPayload))
               : undefined
           });
 
           if (!response.ok) {
-            throw new Error(`API call failed: ${response.statusText}`);
+            if (response.status === 403) {
+              throw new Error('Access forbidden. Please check API permissions and CORS configuration.');
+            } else if (response.status === 401) {
+              throw new Error('Unauthorized. Authentication may be required.');
+            } else {
+              throw new Error(`API call failed: ${response.statusText}`);
+            }
           }
 
           const data = await response.json();
           setApiResponse(data);
         } catch (error) {
-          setApiError(
-            error instanceof Error ? error.message : 'Failed to execute API call'
-          );
+          let errorMessage = error instanceof Error ? error.message : 'Failed to execute API call';
+
+          // Provide more helpful error messages for common CORS issues
+          if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+            errorMessage = 'Unable to connect to API. This may be due to CORS restrictions. Please ensure the API allows requests from this origin.';
+          }
+
+          setApiError(errorMessage);
           console.error('API call error:', error);
         }
       }
