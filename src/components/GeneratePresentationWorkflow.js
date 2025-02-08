@@ -19,26 +19,29 @@ Nodes:
        - "label": string, the title of the slide.
        - "content": string (can be empty).
        - "type": string corresponding to the node type ("text" for textNode, "image" for imageNode, "video" for videoNode, "api" for apiNode).
-       - "pointerMode": string ("laser" or "canvas"),
 
-       Optionally, for an imageNode you may include:
-             • "url": string (image URL). **Always use "https://picsum.photos/400" for this field.**
+       For an imageNode include:
+             • "url": string (image URL). **Always use "https://picsum.photos/x" where x is a random number between 100 and 800.**
              • "zoomPoint": an object with numeric "x" and "y" **Always set to 40 and 50 respectively**,
-             • "zoomInGesture": string (one of "Thumb_Up", "Thumb_Down", "Open_Palm", "Closed_Fist", "Victory", "Pointing_Up"),
-             • "zoomOutGesture": string (one of the valid gestures),
-       Optionally, for a videoNode you may include:
+             • "zoomInGesture": string **Always set to "Victory"**,
+             • "zoomOutGesture": string **Always set to "Closed_Fist"**,
+       For a videoNode include:
              • "videoUrl": string (video URL). **Choose this value randomly from the following list: http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4, http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4.**
              • "autoplay": boolean,
              • "loop": boolean,
-             • "playPauseGesture": string (one of the valid gestures),
-             • "scrubForwardGesture": string (one of the valid gestures),
-             • "scrubBackwardGesture": string (one of the valid gestures),
+             • "playPauseGesture": string **Always set to "Pointing_Up"**,
+             • "scrubForwardGesture": string **Always set to "Victory"**,
+             • "scrubBackwardGesture": string **Always set to "Closed_Fist"**,
              • "scrubAmount": number.
-       Optionally, for any node you may include pointer configuration:
-             • "pointerStartGesture": string (one of "Thumb_Up", "Thumb_Down", "Open_Palm", "Closed_Fist", "Victory", "Pointing_Up"),
-             • "pointerStopGesture": string (one of the valid gestures).
+       For a textNode include pointer configuration:
+             • "pointerStartGesture": string **Always set to "Pointing_Up"**,
+             • "pointerStopGesture": string **Always set to "Closed_Fist"**,
+             • "pointerMode": string **Randomly choose between "laser" and "canvas"**.
+             • "pointerColor": string **Randomly choose between "#ff0072" and "#00ff72"**.
+             • "pointerSize": number **Randomly choose between 10 and 20**.
 
-  • "position": an object with two numeric fields "x" and "y".
+
+  • "position": an object with two numeric fields "x" and "y" (keep the x values of consecutive nodes spaced out 350 apart, let y vary slightly).
 
 Edges:
 - "edges" is an array of edge objects. Each edge object must include exactly the following fields:
@@ -47,12 +50,12 @@ Edges:
   • "source": a string (the id of the source node).
   • "target": a string (the id of the target node).
   • "data": an object that must include:
-         - "gesture": a string; valid values are "Thumb_Up", "Thumb_Down", "Open_Palm", "Closed_Fist", "Victory", "Pointing_Up".
+         - "gesture": a string **Alternate between "Thumb_Up" and "Thumb_Down" for each pair of consecutive nodes**.
   • "markerEnd": an object with:
-         - "type": string (for example, "arrowclosed").
+         - "type": string **Always set to "arrowclosed"**.
   • "style": an object with:
-         - "strokeWidth": number,
-         - "stroke": string.
+         - "strokeWidth": number **Always set to 2**,
+         - "stroke": string **Always set to "#ff0072"**.
   • "animated": boolean.
   • "label": string.
 
@@ -155,7 +158,7 @@ Example Output:
   ]
 }
 
-Note: Do not use the same gesture for multiple actions on the same node. Do NOT provide any additional text in your response.
+Note: Do NOT use only one type of node. Do NOT provide any additional text in your response.
 `;
 
   // Combine the user's custom prompt with our detailed instructions.
