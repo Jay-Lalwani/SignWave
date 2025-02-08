@@ -89,7 +89,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     const allObjects = splineApp.getAllObjects();
 
     //manually put the names of the spline objects :(
-    const obj = allObjects.find(obj => obj.name === 'chips' || obj.name === 'Bot');
+    const obj = allObjects.find(obj => obj.name === 'chips' || obj.name === 'Bot' || obj.name === 'Scene');
      
     if (obj) {
       const degrees = currentNode.data.rotationDegree[direction];
@@ -140,15 +140,15 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
 
       const MIN_ZOOM = 0.1;  // 20% zoom
       const MAX_ZOOM = 4.0;  // a huge zoom
-      const ZOOM_SPEED = 0.2; // Faster zoom speed
+      const ZOOM_SPEED = 0.04; // Faster zoom speed
 
       const animate = () => {
         const zoomFactor = direction === 'in' ? (1 - ZOOM_SPEED) : (1 + ZOOM_SPEED);
         const newZoom = currentZoom * zoomFactor;
 
         // Check zoom bounds
-        if ((direction === 'in' && newZoom > MAX_ZOOM) || 
-            (direction === 'out' && newZoom < MIN_ZOOM)) {
+        if ((direction === 'in' && newZoom < MIN_ZOOM ) || 
+            (direction === 'out' && newZoom > MAX_ZOOM )) {
           return;
         }
 

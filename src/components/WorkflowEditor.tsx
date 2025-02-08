@@ -536,6 +536,17 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
   const memoizedNodeTypes = useMemo(() => nodeTypes, []);
   const memoizedEdgeTypes = useMemo(() => edgeTypes, []);
 
+  // Check valid url for spline scene
+  const isValidUrl = (url: string | undefined): boolean => {
+    if (!url) return true; // Empty is considered valid
+    try {
+      new URL(url);
+      return url.includes('spline.design');
+    } catch {
+      return false;
+    }
+  };
+
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex' }} onClick={() => {
       setSelectedNode(null);
@@ -764,16 +775,27 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
               <input
                 type="text"
                 value={nodeForm.splineScene || ''}
-                onChange={(e) => handleNodeFormChange({ splineScene: e.target.value })}
+                onChange={(e) => {
+                  try {
+                    const url = new URL(e.target.value);
+                    handleNodeFormChange({ splineScene: e.target.value });
+                  } catch (error) {
+                    console.error('Invalid URL:', error);
+                    // Optionally show error message to user
+                    // Still allow setting the value, but maybe show it in red
+                    // handleNodeFormChange({ splineScene: e.target.value });
+                  }
+                }}
                 style={{
                   width: '100%',
                   padding: '8px',
                   border: '1px solid #ddd',
-                  borderRadius: '4px'
+                  borderRadius: '4px',
+                  borderColor: isValidUrl(nodeForm.splineScene) ? '#ddd' : '#ff0072'
                 }}
-                placeholder="https://prod.spline.design/your-scene-id"
+                placeholder="https://prod.spline.design/..."
               />
-              {nodeForm.splineScene && (
+              {nodeForm.splineScene && isValidUrl(nodeForm.splineScene) && (
                 <div style={{ 
                   width: '100%',
                   height: '200px',
