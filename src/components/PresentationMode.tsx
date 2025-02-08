@@ -59,6 +59,8 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [splineApps, setSplineApps] = useState<{ [key: string]: Application }>({});
   const [currentZoom, setCurrentZoom] = useState(1.0);
   const [cursorFollow, setCursorFollow] = useState(false);
+  const lastGestureTime = useRef<number>(0);
+  const GESTURE_COOLDOWN = 1000; // 1 second cooldown between transitions
   
   const currentNode = workflow.nodes.find(n => n.id === currentNodeId);
 
@@ -95,7 +97,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     const allObjects = splineApp.getAllObjects();
 
     //manually put the names of the spline objects :(
-    const obj = allObjects.find(obj => obj.name === 'chips' || obj.name === 'Bot' || obj.name === 'Scene'|| obj.name === 'Text');
+    const obj = allObjects.find(obj => obj.name === 'chips' || obj.name === 'Scene'|| obj.name === 'Text'  || obj.name === 'group' || obj.name === 'swing Scene');
      
     if (obj) {
       const degrees = currentNode.data.rotationDegree[direction];
@@ -144,31 +146,40 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
         cancelAnimationFrame(zoomAnimationRef.current);
       }
 
-      const MIN_ZOOM = 0.1;  // 20% zoom
-      const MAX_ZOOM = 4.0;  // a huge zoom
-      const ZOOM_SPEED = 0.04; // Faster zoom speed
+      const MIN_ZOOM = currentNode?.data?.minZoom || 0.1;
+      const MAX_ZOOM = currentNode?.data?.maxZoom || 4.0;
+      const ZOOM_SPEED = 0.09; // Faster zoom speed
 
       const animate = () => {
         const zoomFactor = direction === 'in' ? (1 - ZOOM_SPEED) : (1 + ZOOM_SPEED);
         const newZoom = currentZoom * zoomFactor;
-
+          
         // Check zoom bounds
-        if ((direction === 'in' && newZoom < MIN_ZOOM ) || 
-            (direction === 'out' && newZoom > MAX_ZOOM )) {
-          return;
+        if (direction === 'out' && newZoom >= (currentNode?.data?.maxZoom || MAX_ZOOM)) {
+          cancelAnimationFrame(zoomAnimationRef.current!);
+          return currentNode?.data?.maxZoom || MAX_ZOOM;
+        }
+        if (direction === 'in' && newZoom <= (currentNode?.data?.minZoom || MIN_ZOOM)) {
+          cancelAnimationFrame(zoomAnimationRef.current!);
+          return currentNode?.data?.minZoom || MIN_ZOOM;
         }
 
-        splineApps[currentNode?.data?.splineScene].setZoom(newZoom);
+          splineApps[currentNode?.data?.splineScene].setZoom(newZoom);
         setCurrentZoom(newZoom);
 
-        zoomAnimationRef.current = requestAnimationFrame(animate);
+          zoomAnimationRef.current = requestAnimationFrame(animate);
       };
 
       zoomAnimationRef.current = requestAnimationFrame(animate);
     }
-  }, [splineApps, currentNode?.data?.splineScene, currentZoom]);
+  }, [splineApps, currentNode?.data?.splineScene, currentZoom, currentNode?.data?.minZoom, currentNode?.data?.maxZoom]);
 
   const handleGesture = useCallback((result: GestureResult) => {
+    const now = Date.now();
+    if (now - lastGestureTime.current < GESTURE_COOLDOWN) {
+      return; // Skip if we're still in cooldown
+    }
+
     // Add pointer controls at the start of the function
     if (currentNode?.data?.pointerStartGesture && result.gesture === currentNode.data.pointerStartGesture) {
       setCursorFollow(true);
@@ -245,7 +256,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     
     // Handle transitions
     if (possibleTransitions.length > 0) {
-      // Reset zoom when transitioning
+      lastGestureTime.current = now;
       setZoomLevel(1);
       setZoomPoint(null);
       setCurrentNodeId(possibleTransitions[0].target);
@@ -470,17 +481,44 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
           padding: '20px',
           overflow: 'hidden'
         }}>
-          <div style={{ 
-            fontSize: '2em',
-            marginBottom: '20px',
-            transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
-            transformOrigin: zoomPoint 
-              ? `${zoomPoint.x}% ${zoomPoint.y}%` 
-              : 'center center',
-            transition: 'transform 0.1s ease-out'
-          }}>
-            {currentNode?.data?.label || 'No content'}
-          </div>
+          {currentNode?.data?.type === 'complexobject' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+              <div style={{
+                maxWidth: '800px',
+                width: '100%',
+                height: '500px',
+                transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+                transformOrigin: zoomPoint 
+                  ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                  : 'center center',
+                transition: 'transform 0.1s ease-out',
+                background: '#f0f0f0',
+                borderRadius: '8px',
+                overflow: 'hidden'
+              }}>
+                {currentNode.data.splineScene && (
+                  <Spline 
+                    scene={currentNode.data.splineScene}
+                    onLoad={(splineApp) => {
+                      console.log('Spline scene loaded:', currentNode.data.splineScene);
+                      setSplineApps(prev => ({
+                        ...prev,
+                        [currentNode.data.splineScene]: splineApp
+                      }));
+                    }}
+                  />
+                )}
+              </div>
+              <div style={{ 
+                fontSize: '1.5em',
+                maxWidth: '800px',
+                textAlign: 'center',
+                color: '#333'
+              }}>
+                {currentNode?.data?.label || 'No content'}
+              </div>
+            </div>
+          ) : null}
           {currentNode?.data?.type === 'image' ? (
             <div style={{
               maxWidth: '800px',
@@ -563,34 +601,6 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                 </div>
               )}
             </>
-          ) : currentNode?.data?.type === 'complexobject' ? (
-            <div style={{
-              maxWidth: '800px',
-              width: '100%',
-              height: '500px',
-              marginBottom: '20px',
-              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
-              transformOrigin: zoomPoint 
-                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
-                : 'center center',
-              transition: 'transform 0.1s ease-out',
-              background: '#f0f0f0',
-              borderRadius: '8px',
-              overflow: 'hidden'
-            }}>
-              {currentNode.data.splineScene && currentNode.data.type === 'complexobject' && (
-                <Spline 
-                  scene={currentNode.data.splineScene}
-                  onLoad={(splineApp) => {
-                    console.log('Spline scene loaded:', currentNode.data.splineScene);
-                    setSplineApps(prev => ({
-                      ...prev,
-                      [currentNode.data.splineScene]: splineApp
-                    }));
-                  }}
-                />
-              )}
-            </div>
           ) : (
             <div style={{ 
               fontSize: '1.2em',
