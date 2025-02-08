@@ -161,9 +161,6 @@ Example Output:
 Note: Do NOT use only one type of node. Do NOT provide any additional text in your response.
 `;
 
-  // Combine the user's custom prompt with our detailed instructions.
-  const finalPrompt = `${userPrompt}\n\n${detailedSchemaInstructions}`;
-
   // Initialize the OpenAI client.
   const client = new openai.OpenAI({
     baseURL: "https://api.ai.it.cornell.edu",

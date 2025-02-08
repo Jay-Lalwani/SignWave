@@ -35,7 +35,7 @@ const GeneratePresentationModal: React.FC<Props> = ({ onGenerate, onClose }) => 
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Enter prompt to generate presentation"
+          placeholder="Topic..."
           style={{ width: "100%", height: "100px", marginBottom: "10px" }}
         />
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
