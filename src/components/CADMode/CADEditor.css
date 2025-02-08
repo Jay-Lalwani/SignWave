@@ -1,10 +1,9 @@
 .cad-editor-container {
   width: 100%;
-  height: 100vh;
-  position: absolute;
-  top: 0;
-  left: 0;
+  height: 100%;
+  position: relative;
   background-color: #1a1a1a;
+  z-index: 1;
 }
 
 .cad-editor-container canvas {
@@ -16,4 +15,83 @@
 /* Hide the container when not active */
 .cad-editor-container:not(.active) {
   display: none;
+}
+
+.cad-mode-controls {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cad-mode-indicator {
+  background: rgba(97, 218, 251, 0.1);
+  color: #61dafb;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.gesture-status {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.grabbing-indicator {
+  margin-left: 0.5rem;
+  color: #ff4444;
+  font-weight: bold;
+}
+
+/* Webcam overlay styles */
+.webcam-overlay {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  width: 320px;
+  height: 240px;
+  z-index: 2;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Tool controls */
+.tool-controls {
+  position: fixed;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 1rem;
+  border-radius: 8px;
+  z-index: 1000;
+}
+
+.tool-button {
+  background: transparent;
+  border: 1px solid #61dafb;
+  color: #61dafb;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tool-button:hover {
+  background: rgba(97, 218, 251, 0.1);
+}
+
+.tool-button.active {
+  background: #61dafb;
+  color: #1a1a1a;
 }

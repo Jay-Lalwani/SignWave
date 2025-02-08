@@ -6,6 +6,11 @@ export type GestureResult = {
   gesture: string;
   confidence: number;
   timestamp: number;
+  handPosition?: {
+    x: number;
+    y: number;
+    z: number;
+  };
 };
 
 type Props = {
@@ -34,9 +39,9 @@ type GestureThresholds = {
 const SAMPLES_NEEDED = 30;
 const PAUSE_DURATION = 1000; // 1 second pause between gestures
 
-const GestureRecognizerComponent: React.FC<Props> = ({ 
-  onGestureDetected, 
-  className, 
+const GestureRecognizerComponent: React.FC<Props> = ({
+  onGestureDetected,
+  className,
   showWebcam = true,
   onCalibrationComplete,
   startCalibration = true,
@@ -72,7 +77,7 @@ const GestureRecognizerComponent: React.FC<Props> = ({
         const vision = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
         );
-        
+
         gestureRecognizerRef.current = await GestureRecognizer.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
@@ -105,7 +110,7 @@ const GestureRecognizerComponent: React.FC<Props> = ({
   useEffect(() => {
     let animationFrameId: number;
     let lastVideoTime = -1;
-    
+
     const detectGestures = async () => {
       if (
         webcamRef.current?.video &&
@@ -114,18 +119,18 @@ const GestureRecognizerComponent: React.FC<Props> = ({
         !isPaused
       ) {
         const video = webcamRef.current.video;
-        
+
         if (video.readyState === 4 && video.currentTime !== lastVideoTime) {
           lastVideoTime = video.currentTime;
           try {
             const gestureRecognitionResult = gestureRecognizerRef.current.recognizeForVideo(video, performance.now());
-            
+
             if (gestureRecognitionResult.gestures?.length && gestureRecognitionResult.gestures[0]?.length) {
               const topGesture = gestureRecognitionResult.gestures[0][0];
 
               if (isCalibrating && calibrationStep < CALIBRATION_GESTURES.length) {
                 const expectedGesture = CALIBRATION_GESTURES[calibrationStep];
-                
+
                 if (topGesture.categoryName === expectedGesture) {
                   confidenceSum.current += topGesture.score;
                   setCalibrationGesture(expectedGesture);
@@ -141,7 +146,7 @@ const GestureRecognizerComponent: React.FC<Props> = ({
                         onThresholdsUpdate?.(updated);
                         return updated;
                       });
-                      
+
                       setTimeout(() => {
                         setIsPaused(true);
                         setTimeout(() => {
@@ -164,10 +169,24 @@ const GestureRecognizerComponent: React.FC<Props> = ({
               } else if (!isCalibrating && topGesture.categoryName !== "None") {
                 const threshold = gestureThresholds[topGesture.categoryName] || 0.7;
                 if (topGesture.score >= threshold) {
+                  // Get hand landmarks from the result
+                  const landmarks = gestureRecognitionResult.landmarks?.[0];
+                  let handPosition;
+
+                  if (landmarks) {
+                    // Use the palm center (landmark 0) for position
+                    handPosition = {
+                      x: landmarks[0].x * window.innerWidth,
+                      y: landmarks[0].y * window.innerHeight,
+                      z: landmarks[0].z * 100 // Scale Z coordinate for better visualization
+                    };
+                  }
+
                   onGestureDetected?.({
                     gesture: topGesture.categoryName,
                     confidence: topGesture.score,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    handPosition
                   });
                 }
               }
@@ -177,7 +196,7 @@ const GestureRecognizerComponent: React.FC<Props> = ({
           }
         }
       }
-      
+
       animationFrameId = requestAnimationFrame(detectGestures);
     };
 
@@ -197,15 +216,20 @@ const GestureRecognizerComponent: React.FC<Props> = ({
   const isLastGesture = calibrationStep === CALIBRATION_GESTURES.length - 1;
 
   return (
-    <div className={className} style={{ 
+    <div className={className} style={{
       position: 'relative',
-      width: isCalibrating ? '100vw' : '100%',
-      height: isCalibrating ? '100vh' : '100%',
+      width: isCalibrating ? '100vw' : 'auto',
+      height: isCalibrating ? '100vh' : 'auto',
+      zIndex: isCalibrating ? 1000 : 2
     }}>
       {isLoading ? (
         <div>Loading gesture recognizer...</div>
       ) : (
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+        <div style={{
+          position: 'relative',
+          width: isCalibrating ? '100%' : '320px',
+          height: isCalibrating ? '100%' : '240px'
+        }} className={isCalibrating ? '' : 'webcam-overlay'}>
           <Webcam
             ref={webcamRef}
             mirrored
@@ -234,7 +258,8 @@ const GestureRecognizerComponent: React.FC<Props> = ({
               alignItems: 'center',
               justifyContent: 'center',
               padding: '20px',
-              textAlign: 'center'
+              textAlign: 'center',
+              zIndex: 1001
             }}>
               {isPaused ? (
                 <div style={{ fontSize: '1.5em', color: '#4CAF50' }}>
@@ -249,9 +274,9 @@ const GestureRecognizerComponent: React.FC<Props> = ({
                   <div style={{ fontSize: '1.2em', color: '#666' }}>
                     Hold the gesture steady...
                   </div>
-                  <div style={{ 
-                    width: '200px', 
-                    height: '20px', 
+                  <div style={{
+                    width: '200px',
+                    height: '20px',
                     background: '#333',
                     borderRadius: '10px',
                     margin: '20px 0',
@@ -265,7 +290,7 @@ const GestureRecognizerComponent: React.FC<Props> = ({
                     }} />
                   </div>
                   {calibrationGesture && (
-                    <div style={{ 
+                    <div style={{
                       marginTop: '10px',
                       color: calibrationGesture === CALIBRATION_GESTURES[calibrationStep] ? '#4CAF50' : '#ff0072'
                     }}>

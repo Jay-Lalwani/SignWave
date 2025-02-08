@@ -3,6 +3,7 @@ import './App.css';
 import WorkflowEditor, { WorkflowData } from './components/WorkflowEditor';
 import PresentationMode from './components/PresentationMode';
 import CADController from './components/CADMode/CADController';
+import GestureRecognizer, { GestureResult } from './components/GestureRecognizer';
 
 type Mode = 'edit' | 'present' | 'cad';
 
@@ -25,7 +26,6 @@ function App() {
     if (!saved) return defaultWorkflow;
     try {
       const parsed = JSON.parse(saved);
-      // Ensure the parsed data has the correct structure
       if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
         return parsed;
       }
@@ -35,6 +35,18 @@ function App() {
       return defaultWorkflow;
     }
   });
+
+  const [gestureData, setGestureData] = useState<{
+    handPosition: { x: number; y: number; z: number };
+    isGrabbing: boolean;
+  } | null>(null);
+
+  const [calibrationComplete, setCalibrationComplete] = useState(false);
+
+  // Debug log for state changes
+  useEffect(() => {
+    console.log('App state:', { mode, calibrationComplete, hasGestureData: !!gestureData });
+  }, [mode, calibrationComplete, gestureData]);
 
   // Save workflow whenever it changes
   useEffect(() => {
@@ -49,12 +61,29 @@ function App() {
     setWorkflow(newWorkflow);
   }, []);
 
+  const handleGestureDetected = useCallback((result: GestureResult) => {
+    // Update gesture data with hand position if available
+    setGestureData({
+      handPosition: result.handPosition || { x: 0, y: 0, z: 0 },
+      isGrabbing: result.gesture === 'Closed_Fist'
+    });
+  }, []);
+
   const handleModeChange = (newMode: Mode) => {
+    console.log('Changing mode to:', newMode);
     setMode(newMode);
+    if (newMode === 'cad') {
+      setCalibrationComplete(false);
+    }
   };
 
+  const handleCalibrationComplete = useCallback(() => {
+    console.log('Calibration complete');
+    setCalibrationComplete(true);
+  }, []);
+
   return (
-    <div className="App">
+    <div className={`App ${mode === 'cad' ? 'cad-mode-active' : ''}`}>
       <header className="App-header">
         <div className="mode-controls">
           <button onClick={() => handleModeChange('edit')} className={mode === 'edit' ? 'active' : ''}>
@@ -64,22 +93,43 @@ function App() {
             Present Mode
           </button>
           <button onClick={() => handleModeChange('cad')} className={mode === 'cad' ? 'active' : ''}>
-            CAD Mode
+            CAD Mode {calibrationComplete ? '(Calibrated)' : ''}
           </button>
         </div>
       </header>
       <main>
+        {mode === 'cad' && !calibrationComplete && (
+          <GestureRecognizer
+            onGestureDetected={handleGestureDetected}
+            showWebcam={true}
+            startCalibration={true}
+            onCalibrationComplete={handleCalibrationComplete}
+          />
+        )}
+
         {mode === 'edit' && (
           <WorkflowEditor onWorkflowUpdate={handleWorkflowUpdate} initialWorkflow={workflow} />
         )}
         {mode === 'present' && (
           <PresentationMode workflow={workflow} />
         )}
-        {mode === 'cad' && (
-          <CADController
-            isActive={true}
-            gestureData={mode === 'cad' ? undefined : null} // We'll integrate gesture data here
-          />
+        {mode === 'cad' && calibrationComplete && (
+          <div style={{ width: '100%', height: 'calc(100vh - 60px)', position: 'relative' }}>
+            <CADController
+              isActive={true}
+              gestureData={gestureData || undefined}
+              onModeChange={(isCADMode) => {
+                if (!isCADMode && mode === 'cad') {
+                  handleModeChange('edit');
+                }
+              }}
+            />
+            <GestureRecognizer
+              onGestureDetected={handleGestureDetected}
+              showWebcam={true}
+              startCalibration={false}
+            />
+          </div>
         )}
       </main>
     </div>
