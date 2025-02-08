@@ -514,6 +514,132 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   <span>{workflow.nodes.find(n => n.id === edge.target)?.data.label}</span>
                 </div>
               ))}
+
+              {currentNode?.data?.pointerStartGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                    {currentNode.data.pointerStartGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Start {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                </div>
+              )}
+              {currentNode?.data?.pointerStopGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                    {currentNode.data.pointerStopGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Stop {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                </div>
+              )}
+
+              {currentNode?.data?.zoomInGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
+                    {currentNode.data.zoomInGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Zoom In</span>
+                </div>
+              )}
+              {currentNode?.data?.zoomOutGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
+                    {currentNode.data.zoomOutGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Zoom Out</span>
+                </div>
+              )}
+
+              {currentNode?.data?.type === 'video' && (
+                <>
+                  {currentNode.data.playPauseGesture && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                        {currentNode.data.playPauseGesture}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Play/Pause Video</span>
+                    </div>
+                  )}
+                  {currentNode.data.scrubForwardGesture && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                        {currentNode.data.scrubForwardGesture}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Fast Forward</span>
+                    </div>
+                  )}
+                  {currentNode.data.scrubBackwardGesture && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                        {currentNode.data.scrubBackwardGesture}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Rewind</span>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
