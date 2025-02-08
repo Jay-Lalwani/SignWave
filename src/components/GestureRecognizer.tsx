@@ -11,6 +11,7 @@ export type GestureResult = {
     y: number;
     z: number;
   };
+  isGrabbing: boolean;
 };
 
 type Props = {
@@ -73,10 +74,12 @@ const GestureRecognizerComponent: React.FC<Props> = ({
   // Initialize MediaPipe
   useEffect(() => {
     const initGestureRecognizer = async () => {
+      console.log('Initializing gesture recognizer...');
       try {
         const vision = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
         );
+        console.log('MediaPipe vision loaded');
 
         gestureRecognizerRef.current = await GestureRecognizer.createFromOptions(vision, {
           baseOptions: {
@@ -89,6 +92,11 @@ const GestureRecognizerComponent: React.FC<Props> = ({
           minHandPresenceConfidence: 0.3,
           minTrackingConfidence: 0.3,
         });
+        console.log('Gesture recognizer created with options:', {
+          minHandDetectionConfidence: 0.3,
+          minHandPresenceConfidence: 0.3,
+          minTrackingConfidence: 0.3
+        });
 
         setIsLoading(false);
       } catch (error) {
@@ -97,9 +105,11 @@ const GestureRecognizerComponent: React.FC<Props> = ({
       }
     };
 
+    console.log('Starting gesture recognizer initialization');
     initGestureRecognizer();
 
     return () => {
+      console.log('Cleaning up gesture recognizer');
       if (gestureRecognizerRef.current) {
         gestureRecognizerRef.current.close();
       }
@@ -108,8 +118,18 @@ const GestureRecognizerComponent: React.FC<Props> = ({
 
   // Main gesture detection loop
   useEffect(() => {
+    console.log('Setting up gesture detection loop with state:', {
+      isLoading,
+      isCalibrating,
+      hasWebcam: !!webcamRef.current,
+      hasRecognizer: !!gestureRecognizerRef.current,
+      isPaused
+    });
+
     let animationFrameId: number;
     let lastVideoTime = -1;
+    let lastGestureTime = 0;
+    const GESTURE_COOLDOWN = 100; // 100ms cooldown between gestures
 
     const detectGestures = async () => {
       if (
@@ -127,6 +147,25 @@ const GestureRecognizerComponent: React.FC<Props> = ({
 
             if (gestureRecognitionResult.gestures?.length && gestureRecognitionResult.gestures[0]?.length) {
               const topGesture = gestureRecognitionResult.gestures[0][0];
+              const landmarks = gestureRecognitionResult.landmarks?.[0];
+              let handPosition;
+
+              // Log all detected gestures for debugging
+              console.log('Raw gesture detection:', {
+                gesture: topGesture.categoryName,
+                score: topGesture.score,
+                isCalibrating,
+                hasLandmarks: !!landmarks,
+                timestamp: Date.now()
+              });
+
+              if (landmarks) {
+                handPosition = {
+                  x: landmarks[0].x * window.innerWidth,
+                  y: landmarks[0].y * window.innerHeight,
+                  z: landmarks[0].z * 100
+                };
+              }
 
               if (isCalibrating && calibrationStep < CALIBRATION_GESTURES.length) {
                 const expectedGesture = CALIBRATION_GESTURES[calibrationStep];
@@ -139,10 +178,12 @@ const GestureRecognizerComponent: React.FC<Props> = ({
                     if (newCount === SAMPLES_NEEDED) {
                       const avgConfidence = confidenceSum.current / SAMPLES_NEEDED;
                       setGestureThresholds(prev => {
+                        // Lower the threshold even more for better detection
                         const updated = {
                           ...prev,
-                          [expectedGesture]: Math.min(avgConfidence * 0.6, 0.6)
+                          [expectedGesture]: Math.min(avgConfidence * 0.3, 0.3)
                         };
+                        console.log('Updated thresholds:', updated);
                         onThresholdsUpdate?.(updated);
                         return updated;
                       });
@@ -167,27 +208,36 @@ const GestureRecognizerComponent: React.FC<Props> = ({
                   });
                 }
               } else if (!isCalibrating && topGesture.categoryName !== "None") {
-                const threshold = gestureThresholds[topGesture.categoryName] || 0.7;
-                if (topGesture.score >= threshold) {
-                  // Get hand landmarks from the result
-                  const landmarks = gestureRecognitionResult.landmarks?.[0];
-                  let handPosition;
-
-                  if (landmarks) {
-                    // Use the palm center (landmark 0) for position
-                    handPosition = {
-                      x: landmarks[0].x * window.innerWidth,
-                      y: landmarks[0].y * window.innerHeight,
-                      z: landmarks[0].z * 100 // Scale Z coordinate for better visualization
-                    };
-                  }
-
-                  onGestureDetected?.({
+                const now = Date.now();
+                // Only process gestures after cooldown
+                if (now - lastGestureTime >= GESTURE_COOLDOWN) {
+                  // Lower the default threshold for non-calibrated gestures
+                  const threshold = gestureThresholds[topGesture.categoryName] || 0.3;
+                  console.log('Checking gesture against threshold:', {
                     gesture: topGesture.categoryName,
-                    confidence: topGesture.score,
-                    timestamp: Date.now(),
-                    handPosition
+                    score: topGesture.score,
+                    threshold,
+                    passes: topGesture.score >= threshold,
+                    timeSinceLastGesture: now - lastGestureTime
                   });
+
+                  if (topGesture.score >= threshold) {
+                    console.log('Emitting gesture event:', {
+                      gesture: topGesture.categoryName,
+                      confidence: topGesture.score,
+                      position: handPosition,
+                      timestamp: now
+                    });
+
+                    lastGestureTime = now;
+                    onGestureDetected?.({
+                      gesture: topGesture.categoryName,
+                      confidence: topGesture.score,
+                      timestamp: now,
+                      handPosition: handPosition || { x: 0, y: 0, z: 0 },
+                      isGrabbing: topGesture.categoryName === 'Closed_Fist'
+                    });
+                  }
                 }
               }
             }
@@ -203,6 +253,7 @@ const GestureRecognizerComponent: React.FC<Props> = ({
     detectGestures();
 
     return () => {
+      console.log('Cleaning up gesture detection loop');
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
@@ -301,6 +352,27 @@ const GestureRecognizerComponent: React.FC<Props> = ({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {!isCalibrating && (
+        <div className="gesture-feedback" style={{
+          position: 'fixed',
+          top: '50%',
+          right: '1rem',
+          transform: 'translateY(-50%)',
+          background: 'rgba(0, 0, 0, 0.8)',
+          color: '#fff',
+          padding: '1rem',
+          borderRadius: '8px',
+          zIndex: 1000,
+          fontFamily: 'monospace',
+          textAlign: 'left'
+        }}>
+          <div>Gesture Recognition Active</div>
+          <div>Min Confidence: {Object.entries(gestureThresholds).map(([gesture, threshold]) =>
+            `${gesture}: ${threshold.toFixed(2)}`
+          ).join(', ')}</div>
         </div>
       )}
     </div>

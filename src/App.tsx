@@ -39,6 +39,7 @@ function App() {
   const [gestureData, setGestureData] = useState<{
     handPosition: { x: number; y: number; z: number };
     isGrabbing: boolean;
+    gesture: string;
   } | null>(null);
 
   const [calibrationComplete, setCalibrationComplete] = useState(false);
@@ -57,15 +58,27 @@ function App() {
     }
   }, [workflow]);
 
+  // Add debug logging for state changes
+  useEffect(() => {
+    console.log('App state updated:', {
+      mode,
+      calibrationComplete,
+      hasGestureData: !!gestureData,
+      currentGesture: gestureData?.gesture
+    });
+  }, [mode, calibrationComplete, gestureData]);
+
   const handleWorkflowUpdate = useCallback((newWorkflow: WorkflowData) => {
     setWorkflow(newWorkflow);
   }, []);
 
   const handleGestureDetected = useCallback((result: GestureResult) => {
+    console.log('App received gesture:', result);
     // Update gesture data with hand position if available
     setGestureData({
       handPosition: result.handPosition || { x: 0, y: 0, z: 0 },
-      isGrabbing: result.gesture === 'Closed_Fist'
+      isGrabbing: result.gesture === 'Closed_Fist',
+      gesture: result.gesture
     });
   }, []);
 
@@ -115,20 +128,25 @@ function App() {
         )}
         {mode === 'cad' && calibrationComplete && (
           <div style={{ width: '100%', height: 'calc(100vh - 60px)', position: 'relative' }}>
-            <CADController
-              isActive={true}
-              gestureData={gestureData || undefined}
-              onModeChange={(isCADMode) => {
-                if (!isCADMode && mode === 'cad') {
-                  handleModeChange('edit');
-                }
-              }}
-            />
-            <GestureRecognizer
-              onGestureDetected={handleGestureDetected}
-              showWebcam={true}
-              startCalibration={false}
-            />
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
+              <CADController
+                isActive={true}
+                gestureData={gestureData || undefined}
+                onModeChange={(isCADMode) => {
+                  if (!isCADMode && mode === 'cad') {
+                    handleModeChange('edit');
+                  }
+                }}
+              />
+            </div>
+            <div style={{ position: 'absolute', top: 0, left: 0, zIndex: 2 }}>
+              <GestureRecognizer
+                onGestureDetected={handleGestureDetected}
+                showWebcam={true}
+                startCalibration={false}
+                className="cad-gesture-recognizer"
+              />
+            </div>
           </div>
         )}
       </main>

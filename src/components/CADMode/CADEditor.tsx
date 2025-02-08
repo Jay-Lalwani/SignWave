@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Canvas, ThreeEvent } from '@react-three/fiber';
+import React, { useState, useRef, useEffect } from 'react';
+import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid, Line, PivotControls } from '@react-three/drei';
 import * as THREE from 'three';
 import './CADEditor.css';
@@ -15,6 +15,7 @@ interface CADEditorProps {
   gestureData?: {
     handPosition: { x: number; y: number; z: number };
     isGrabbing: boolean;
+    gesture?: string;
   };
 }
 
@@ -23,69 +24,112 @@ const CADEditor: React.FC<CADEditorProps> = ({ isActive, gestureData }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentLine, setCurrentLine] = useState<Point[]>([]);
   const [selectedLine, setSelectedLine] = useState<string | null>(null);
+  const [lastGestureTime, setLastGestureTime] = useState<number>(0);
+  const orbitControlsRef = useRef<any>(null);
+
+  // Debug log for gesture data
+  useEffect(() => {
+    if (gestureData) {
+      const now = Date.now();
+      setLastGestureTime(now);
+      console.log('CADEditor received gesture data:', {
+        gesture: gestureData.gesture,
+        position: gestureData.handPosition,
+        isGrabbing: gestureData.isGrabbing,
+        timestamp: now
+      });
+    }
+  }, [gestureData]);
 
   // Handle gesture-based interactions
-  React.useEffect(() => {
-    if (!gestureData || !isActive) return;
-
-    if (gestureData.isGrabbing && selectedLine) {
-      const scaleFactor = 0.01;
-      const handPos: Point = [
-        gestureData.handPosition.x * scaleFactor,
-        gestureData.handPosition.y * scaleFactor,
-        gestureData.handPosition.z * scaleFactor
-      ];
-
-      setLines(prev =>
-        prev.map(line =>
-          line.id === selectedLine
-            ? {
-              ...line,
-              points: line.points.map(point => [
-                point[0] + handPos[0],
-                point[1] + handPos[1],
-                point[2] + handPos[2]
-              ])
-            }
-            : line
-        )
-      );
+  useEffect(() => {
+    if (!gestureData || !isActive) {
+      return;
     }
-  }, [gestureData, isActive, selectedLine]);
 
-  const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
-    if (!isDrawing) {
-      setIsDrawing(true);
-      const point: Point = [
-        event.point.x,
-        event.point.y,
-        event.point.z
-      ];
-      setCurrentLine([point]);
-    }
-  };
+    const { gesture, handPosition, isGrabbing } = gestureData;
 
-  const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
-    if (isDrawing) {
-      const point: Point = [
-        event.point.x,
-        event.point.y,
-        event.point.z
-      ];
-      setCurrentLine((prev) => [...prev.slice(0, -1), point]);
-    }
-  };
+    // Scale and invert Y coordinate for better mapping
+    const scaleFactor = 0.005; // Reduced for more precise control
+    const handPos: Point = [
+      (handPosition.x - window.innerWidth / 2) * scaleFactor,
+      -(handPosition.y - window.innerHeight / 2) * scaleFactor,
+      handPosition.z * scaleFactor
+    ];
 
-  const handlePointerUp = () => {
-    if (isDrawing && currentLine.length > 1) {
-      const newLine: Line3D = {
-        id: Math.random().toString(36).substr(2, 9),
-        points: currentLine,
-      };
-      setLines((prev) => [...prev, newLine]);
+    // Handle different gestures
+    if (isGrabbing || gesture === 'Closed_Fist') {
+      console.log('Drawing mode active');
+      if (!isDrawing) {
+        setIsDrawing(true);
+        setCurrentLine([handPos]);
+      } else {
+        setCurrentLine(prev => {
+          // Only add point if it's significantly different from the last point
+          const lastPoint = prev[prev.length - 1];
+          const distance = Math.sqrt(
+            Math.pow(lastPoint[0] - handPos[0], 2) +
+            Math.pow(lastPoint[1] - handPos[1], 2) +
+            Math.pow(lastPoint[2] - handPos[2], 2)
+          );
+          return distance > 0.1 ? [...prev, handPos] : prev;
+        });
+      }
+    } else if (gesture === 'Victory') {
+      if (lines.length > 0) {
+        const nearestLine = findNearestLine(handPos, lines);
+        setSelectedLine(nearestLine.id);
+      }
+    } else if (gesture === 'Pointing_Up') {
+      if (selectedLine) {
+        setLines(prev => prev.filter(line => line.id !== selectedLine));
+        setSelectedLine(null);
+      }
+    } else if (gesture === 'Open_Palm') {
+      if (orbitControlsRef.current) {
+        const camera = orbitControlsRef.current.object;
+        camera.position.x += handPos[0];
+        camera.position.y += handPos[1];
+        camera.position.z += handPos[2];
+      }
+    } else {
+      // No recognized gesture
+      if (isDrawing) {
+        if (currentLine.length > 1) {
+          const newLine: Line3D = {
+            id: Math.random().toString(36).substr(2, 9),
+            points: currentLine,
+          };
+          setLines(prev => [...prev, newLine]);
+        }
+        setIsDrawing(false);
+        setCurrentLine([]);
+      }
     }
-    setIsDrawing(false);
-    setCurrentLine([]);
+  }, [gestureData, isActive]);
+
+  // Helper function to find the nearest line to a point
+  const findNearestLine = (point: Point, lines: Line3D[]) => {
+    let nearestLine = lines[0];
+    let minDistance = Infinity;
+
+    lines.forEach(line => {
+      const distance = line.points.reduce((min, linePoint) => {
+        const d = Math.sqrt(
+          Math.pow(point[0] - linePoint[0], 2) +
+          Math.pow(point[1] - linePoint[1], 2) +
+          Math.pow(point[2] - linePoint[2], 2)
+        );
+        return Math.min(min, d);
+      }, Infinity);
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestLine = line;
+      }
+    });
+
+    return nearestLine;
   };
 
   if (!isActive) return null;
@@ -114,9 +158,6 @@ const CADEditor: React.FC<CADEditorProps> = ({ isActive, gestureData }) => {
         {/* Drawing plane */}
         <mesh
           rotation={[-Math.PI / 2, 0, 0]}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
           visible={false}
         >
           <planeGeometry args={[100, 100]} />
@@ -162,8 +203,35 @@ const CADEditor: React.FC<CADEditorProps> = ({ isActive, gestureData }) => {
           <Line points={currentLine} color="#ff0000" lineWidth={2} />
         )}
 
-        <OrbitControls makeDefault />
+        <OrbitControls ref={orbitControlsRef} makeDefault />
       </Canvas>
+
+      {/* Enhanced Debug display */}
+      <div className="debug-info">
+        <div>Active: {isActive ? 'Yes' : 'No'}</div>
+        <div>Drawing: {isDrawing ? 'Yes' : 'No'}</div>
+        <div>Current Gesture: {gestureData?.gesture || 'None'}</div>
+        <div>Selected Line: {selectedLine || 'None'}</div>
+        <div>Last Gesture: {Date.now() - lastGestureTime < 1000 ? 'Active' : 'Inactive'}</div>
+        <div>Hand Position: {gestureData ?
+          `X: ${gestureData.handPosition.x.toFixed(1)}, 
+           Y: ${gestureData.handPosition.y.toFixed(1)}, 
+           Z: ${gestureData.handPosition.z.toFixed(1)}`
+          : 'No Data'}</div>
+      </div>
+
+      {/* Active Gesture Indicator */}
+      {gestureData && Date.now() - lastGestureTime < 1000 && (
+        <div className="active-gesture-indicator">
+          <div className="gesture-name">{gestureData.gesture}</div>
+          <div className="gesture-action">
+            {gestureData.gesture === 'Closed_Fist' && 'Drawing Mode'}
+            {gestureData.gesture === 'Victory' && 'Selection Mode'}
+            {gestureData.gesture === 'Pointing_Up' && 'Delete Mode'}
+            {gestureData.gesture === 'Open_Palm' && 'Camera Control'}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

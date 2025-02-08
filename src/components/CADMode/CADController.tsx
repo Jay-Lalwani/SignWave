@@ -7,6 +7,7 @@ interface CADControllerProps {
   gestureData?: {
     handPosition: { x: number; y: number; z: number };
     isGrabbing: boolean;
+    gesture: string;
   };
   onModeChange?: (isCADMode: boolean) => void;
 }
@@ -21,7 +22,12 @@ const CADController: React.FC<CADControllerProps> = ({
 
   // Debug log for props and state changes
   useEffect(() => {
-    console.log('CADController state:', { isActive, isCADMode, hasGestureData: !!gestureData });
+    console.log('CADController state:', {
+      isActive,
+      isCADMode,
+      hasGestureData: !!gestureData,
+      currentGesture: gestureData?.gesture
+    });
   }, [isActive, isCADMode, gestureData]);
 
   // Handle keyboard shortcuts for mode switching
@@ -56,12 +62,28 @@ const CADController: React.FC<CADControllerProps> = ({
         </div>
         {gestureData && (
           <div className="gesture-status">
-            Hand Position: ({gestureData.handPosition.x.toFixed(2)},
-            {gestureData.handPosition.y.toFixed(2)},
-            {gestureData.handPosition.z.toFixed(2)})
-            {gestureData.isGrabbing && <span className="grabbing-indicator">Grabbing</span>}
+            <div className="current-gesture">
+              Current Gesture: {gestureData.gesture || 'None'}
+            </div>
+            <div className="hand-position">
+              Hand Position: (
+              {gestureData.handPosition.x.toFixed(2)},
+              {gestureData.handPosition.y.toFixed(2)},
+              {gestureData.handPosition.z.toFixed(2)}
+              )
+            </div>
+            {gestureData.isGrabbing && (
+              <div className="grabbing-indicator">Grabbing</div>
+            )}
           </div>
         )}
+        <div className="debug-info">
+          <div>CAD Mode Status:</div>
+          <div>Active: {isActive ? 'Yes' : 'No'}</div>
+          <div>Has Gesture Data: {gestureData ? 'Yes' : 'No'}</div>
+          <div>Last Gesture: {gestureData?.gesture || 'None'}</div>
+          <div>Grabbing: {gestureData?.isGrabbing ? 'Yes' : 'No'}</div>
+        </div>
       </div>
     </div>
   );
