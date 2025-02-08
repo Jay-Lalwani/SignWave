@@ -27,9 +27,6 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [zoomPoint, setZoomPoint] = useState<{ x: number; y: number } | null>(null);
   const zoomAnimationRef = useRef<number>();
   const [cursorFollow, setCursorFollow] = useState(false);
-  const MIN_ZOOM = 1;
-  const MAX_ZOOM = 4;
-  const ZOOM_SPEED = 0.05;
   const [thresholds, setThresholds] = useState<GestureThresholds>(() => {
     try {
       const saved = localStorage.getItem(THRESHOLDS_STORAGE_KEY);
@@ -70,19 +67,29 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     };
   }, []);
 
+  const getZoomLimits = useCallback(() => {
+    if (!currentNode?.data) return { min: 1, max: 4 };
+    return {
+      min: currentNode.data.minZoom || 1,
+      max: currentNode.data.maxZoom || 4
+    };
+  }, [currentNode]);
+
   const handleZoom = useCallback((direction: 'in' | 'out') => {
     if (zoomAnimationRef.current) {
       cancelAnimationFrame(zoomAnimationRef.current);
     }
 
+    const { min, max } = getZoomLimits();
+
     const animate = () => {
       setZoomLevel(current => {
         const newZoom = direction === 'in' 
-          ? Math.min(current + ZOOM_SPEED, MAX_ZOOM)
-          : Math.max(current - ZOOM_SPEED, MIN_ZOOM);
+          ? Math.min(current + 0.05, max)
+          : Math.max(current - 0.05, min);
         
-        if ((direction === 'in' && newZoom < MAX_ZOOM) || 
-            (direction === 'out' && newZoom > MIN_ZOOM)) {
+        if ((direction === 'in' && newZoom < max) || 
+            (direction === 'out' && newZoom > min)) {
           zoomAnimationRef.current = requestAnimationFrame(animate);
         }
         
@@ -91,7 +98,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     };
 
     zoomAnimationRef.current = requestAnimationFrame(animate);
-  }, []);
+  }, [getZoomLimits]);
 
   const handleGesture = useCallback((result: GestureResult) => {
     // Toggle pointer mode based on configurable gestures
@@ -513,7 +520,16 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       )}
       {/* Render the pointer overlay if enabled.
           Use the pointer mode from the current node: "laser" shows FingerCursor; "canvas" shows CanvasPointer */}
-      {cursorFollow && (pointerMode === "laser" ? <FingerCursor /> : <CanvasPointer />)}
+      {cursorFollow && (pointerMode === "laser" ? 
+        <FingerCursor 
+          color={currentNode?.data?.pointerColor || '#ff0000'} 
+          size={currentNode?.data?.pointerSize || 10} 
+        /> : 
+        <CanvasPointer 
+          color={currentNode?.data?.pointerColor || '#ff0000'} 
+          size={currentNode?.data?.pointerSize || 10} 
+        />
+      )}
     </div>
   );
 };

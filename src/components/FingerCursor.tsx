@@ -5,10 +5,15 @@ import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 // Helper for linear interpolation (smoothing)
 const lerp = (start: number, end: number, t: number): number => start + (end - start) * t;
 
-const FingerCursor: React.FC = () => {
+type Props = {
+  color?: string;
+  size?: number;
+};
+
+const FingerCursor: React.FC<Props> = ({ color = '#ff0000', size = 10 }) => {
   const webcamRef = useRef<Webcam>(null);
   const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
-  // The cursor’s screen coordinates; initialized off-screen.
+  // The cursor's screen coordinates; initialized off-screen.
   const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number }>({ x: -100, y: -100 });
 
   // Initialize the hand landmarker in IMAGE mode.
@@ -90,12 +95,12 @@ const FingerCursor: React.FC = () => {
           position: "fixed",
           left: cursorPosition.x,
           top: cursorPosition.y,
-          width: "20px",
-          height: "20px",
-          background: "red",
-          borderRadius: "50%",
-          pointerEvents: "none",
-          transform: "translate(-50%, -50%)",
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: '50%',
+          backgroundColor: color,
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
           zIndex: 1000,
         }}
       />

@@ -5,7 +5,12 @@ import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 // Helper function for linear interpolation (smoothing)
 const lerp = (start: number, end: number, t: number) => start + (end - start) * t;
 
-const CanvasPointer: React.FC = () => {
+type Props = {
+  color?: string;
+  size?: number;
+};
+
+const CanvasPointer: React.FC<Props> = ({ color = '#ff0000', size = 10 }) => {
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [handLandmarker, setHandLandmarker] = React.useState<HandLandmarker | null>(null);
@@ -80,16 +85,16 @@ const CanvasPointer: React.FC = () => {
             // If this is the first detection, initialize smoothed position and draw a starting dot.
             smoothedPosRef.current = { x, y };
             ctx.beginPath();
-            ctx.arc(x, y, 3, 0, 2 * Math.PI);
-            ctx.fillStyle = 'red';
+            ctx.arc(x, y, size / 2, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
             ctx.fill();
           } else {
             // Smoothly interpolate between the previous smoothed position and the new raw position.
             const prev = smoothedPosRef.current;
             const smoothedX = lerp(prev.x, x, smoothingFactor);
             const smoothedY = lerp(prev.y, y, smoothingFactor);
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 3;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = size;
             ctx.lineCap = 'round';
             ctx.beginPath();
             ctx.moveTo(prev.x, prev.y);
@@ -107,7 +112,7 @@ const CanvasPointer: React.FC = () => {
 
     drawLoop();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [handLandmarker]);
+  }, [handLandmarker, color, size]);
 
   return (
     <>

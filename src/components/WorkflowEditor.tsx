@@ -38,6 +38,12 @@ export type SlideNodeData = {
   zoomPoint?: { x: number; y: number };
   zoomInGesture?: string;
   zoomOutGesture?: string;
+  // Zoom configuration
+  minZoom?: number;
+  maxZoom?: number;
+  // Pointer configuration
+  pointerColor?: string;
+  pointerSize?: number;
   // Pointer control gestures
   pointerStartGesture?: string;
   pointerStopGesture?: string;
@@ -899,6 +905,42 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
             </div>
 
             <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Min Zoom Level:</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                placeholder="Default: 1"
+                value={nodeForm.minZoom || ''}
+                onChange={(e) => handleNodeFormChange({ minZoom: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Max Zoom Level:</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                placeholder="Default: 4"
+                value={nodeForm.maxZoom || ''}
+                onChange={(e) => handleNodeFormChange({ maxZoom: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
               <label style={{ display: 'block', marginBottom: '5px' }}>Zoom In Gesture:</label>
               <select
                 value={nodeForm.zoomInGesture || ''}
@@ -990,33 +1032,67 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                 <option value="canvas">Canvas (Writing)</option>
               </select>
             </div>
-          </div>
 
-          <button
-            onClick={() => {
-              setNodes(nds => {
-                const filtered = nds.filter(n => n.id !== selectedNode.id);
-                setEdges(eds => {
-                  const updatedEdges = eds.filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id);
-                  onWorkflowUpdate?.({ nodes: filtered, edges: updatedEdges });
-                  return updatedEdges;
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Pointer Color:</label>
+              <input
+                type="color"
+                value={nodeForm.pointerColor || '#ff0000'}
+                onChange={(e) => handleNodeFormChange({ pointerColor: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '2px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Pointer Size:</label>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                step="1"
+                placeholder="Default: 10"
+                value={nodeForm.pointerSize || ''}
+                onChange={(e) => handleNodeFormChange({ pointerSize: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+
+            <button
+              onClick={() => {
+                setNodes(nds => {
+                  const filtered = nds.filter(n => n.id !== selectedNode.id);
+                  setEdges(eds => {
+                    const updatedEdges = eds.filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id);
+                    onWorkflowUpdate?.({ nodes: filtered, edges: updatedEdges });
+                    return updatedEdges;
+                  });
+                  return filtered;
                 });
-                return filtered;
-              });
-              setSelectedNode(null);
-            }}
-            style={{
-              padding: '8px 16px',
-              background: '#ff0072',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              width: '100%'
-            }}
-          >
-            Delete Node
-          </button>
+                setSelectedNode(null);
+              }}
+              style={{
+                padding: '8px 16px',
+                background: '#ff0072',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                width: '100%'
+              }}
+            >
+              Delete Node
+            </button>
+          </div>
         </div>
       )}
     </div>
