@@ -38,6 +38,11 @@ export type SlideNodeData = {
   zoomPoint?: { x: number; y: number };
   zoomInGesture?: string;
   zoomOutGesture?: string;
+  // Pointer control gestures
+  pointerStartGesture?: string;
+  pointerStopGesture?: string;
+  // New field: choose between laser (red dot) or canvas (writing)
+  pointerMode?: "laser" | "canvas";
 };
 
 const BaseNodeStyle = {
@@ -432,7 +437,9 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
           scrubBackwardGesture: ''
         } : {}),
         ...(type === 'imageNode' ? { url: '' } : {}),
-        ...(type === 'apiNode' ? { apiEndpoint: '', apiMethod: 'GET', apiPayload: '' } : {})
+        ...(type === 'apiNode' ? { apiEndpoint: '', apiMethod: 'GET', apiPayload: '' } : {}),
+        // Default pointer mode is "laser"
+        pointerMode: "laser"
       },
       position: {
         x: Math.random() * 300 + 100,
@@ -928,6 +935,61 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                 ))}
               </select>
             </div>
+
+            {/* New fields for pointer control gestures */}
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Pointer Start Gesture:</label>
+              <select
+                value={nodeForm.pointerStartGesture || ''}
+                onChange={(e) => handleNodeFormChange({ pointerStartGesture: e.target.value })}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Select a gesture...</option>
+                {AVAILABLE_GESTURES.map(gesture => (
+                  <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Pointer Stop Gesture:</label>
+              <select
+                value={nodeForm.pointerStopGesture || ''}
+                onChange={(e) => handleNodeFormChange({ pointerStopGesture: e.target.value })}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Select a gesture...</option>
+                {AVAILABLE_GESTURES.map(gesture => (
+                  <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
+            {/* New field for pointer mode */}
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Pointer Mode:</label>
+              <select
+                value={nodeForm.pointerMode || 'laser'}
+                onChange={(e) => handleNodeFormChange({ pointerMode: e.target.value as "laser" | "canvas" })}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="laser">Laser (Red Dot)</option>
+                <option value="canvas">Canvas (Writing)</option>
+              </select>
+            </div>
           </div>
 
           <button
@@ -961,4 +1023,4 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
   );
 };
 
-export default WorkflowEditor; 
+export default WorkflowEditor;

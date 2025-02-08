@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Node, Edge } from 'reactflow';
 import GestureRecognizer, { GestureResult } from './GestureRecognizer';
+import FingerCursor from './FingerCursor';
+import CanvasPointer from './CanvasPointer';
 
 type Props = {
   workflow: {
@@ -24,6 +26,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomPoint, setZoomPoint] = useState<{ x: number; y: number } | null>(null);
   const zoomAnimationRef = useRef<number>();
+  const [cursorFollow, setCursorFollow] = useState(false);
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 4;
   const ZOOM_SPEED = 0.05;
@@ -54,6 +57,9 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const lastPlayPauseTime = useRef<number>(0);
   
   const currentNode = workflow.nodes.find(n => n.id === currentNodeId);
+
+  // Derive pointer mode from the current node; default to "laser"
+  const pointerMode = currentNode?.data?.pointerMode || "laser";
 
   // Handle continuous zoom
   useEffect(() => {
@@ -88,13 +94,21 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   }, []);
 
   const handleGesture = useCallback((result: GestureResult) => {
-    // Find edges that start from current node
-    const possibleTransitions = workflow.edges.filter(e => 
-      e.source === currentNodeId && 
+    // Toggle pointer mode based on configurable gestures
+    if (currentNode?.data?.pointerStartGesture && result.gesture === currentNode.data.pointerStartGesture) {
+      setCursorFollow(true);
+      return;
+    } else if (currentNode?.data?.pointerStopGesture && result.gesture === currentNode.data.pointerStopGesture) {
+      setCursorFollow(false);
+      return;
+    }
+  
+    // Existing logic for transitions and video controls…
+    const possibleTransitions = workflow.edges.filter(e =>
+      e.source === currentNodeId &&
       e.data?.gesture === result.gesture
     );
     
-    // Handle video control gestures
     if (currentNode?.data?.type === 'video' && videoRef.current) {
       if (result.gesture === currentNode.data.playPauseGesture) {
         const now = Date.now();
@@ -121,8 +135,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
         return;
       }
     }
-
-    // Handle zoom gestures
+    
     if (currentNode?.data.zoomPoint) {
       if (result.gesture === currentNode.data.zoomInGesture) {
         setZoomPoint(currentNode.data.zoomPoint);
@@ -134,10 +147,9 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
         return;
       }
     }
-
-    // Handle transitions
+  
+    // Handle node transitions if a matching edge is found.
     if (possibleTransitions.length > 0) {
-      // Reset zoom when transitioning
       setZoomLevel(1);
       setZoomPoint(null);
       setCurrentNodeId(possibleTransitions[0].target);
@@ -499,8 +511,11 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
           )}
         </div>
       )}
+      {/* Render the pointer overlay if enabled.
+          Use the pointer mode from the current node: "laser" shows FingerCursor; "canvas" shows CanvasPointer */}
+      {cursorFollow && (pointerMode === "laser" ? <FingerCursor /> : <CanvasPointer />)}
     </div>
   );
 };
 
-export default PresentationMode; 
+export default PresentationMode;
