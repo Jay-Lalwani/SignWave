@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Node, Edge } from 'reactflow';
 import GestureRecognizer, { GestureResult } from './GestureRecognizer';
+import Spline from '@splinetool/react-spline';
+import { Application } from '@splinetool/runtime';
 
 type Props = {
   workflow: {
@@ -23,6 +25,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [showWebcam, setShowWebcam] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomPoint, setZoomPoint] = useState<{ x: number; y: number } | null>(null);
+  const [rotationDegree, setRotation] = useState<{ x: number; y: number } | null>(null); //Rotation of the 3JS object
   const zoomAnimationRef = useRef<number>();
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 4;
@@ -52,6 +55,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const SCRUB_AMOUNT = 5; // seconds to scrub forward/backward
   const PLAY_PAUSE_DELAY = 1000; // 1 second delay between play/pause gestures
   const lastPlayPauseTime = useRef<number>(0);
+  const [splineApp, setSplineApp] = useState<Application | null>(null);
   
   const currentNode = workflow.nodes.find(n => n.id === currentNodeId);
 
@@ -63,6 +67,18 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       }
     };
   }, []);
+
+  const handleRotation = useCallback(() => {
+    if (rotationDegree && splineApp) {
+      // Get the first 3D object in the scene by its ID
+      const obj = splineApp.findObjectById('831d45ec-ad9a-4c09-a588-70b67dd0d781');
+      if (obj) {
+        // Apply rotation
+        obj.rotation.x += (rotationDegree.x * Math.PI) / 180;
+        obj.rotation.y += (rotationDegree.y * Math.PI) / 180;
+      }
+    }
+  }, [rotationDegree, splineApp]);
 
   const handleZoom = useCallback((direction: 'in' | 'out') => {
     if (zoomAnimationRef.current) {
@@ -135,6 +151,17 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       }
     }
 
+    //<insert gesture> will rotate the 3JS object. the data type for the currenet node
+    //must be a 3js for this gesture to override the default behavior
+    if (currentNode?.data?.type === 'complexobject') {
+      if (result.gesture === currentNode.data.rotationGesture) {
+        setRotation(currentNode.data.rotationDegree);
+        console.log(rotationDegree);
+        handleRotation();
+      }
+      return;
+    }
+    
     // Handle transitions
     if (possibleTransitions.length > 0) {
       // Reset zoom when transitioning
@@ -142,7 +169,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       setZoomPoint(null);
       setCurrentNodeId(possibleTransitions[0].target);
     }
-  }, [currentNodeId, workflow.edges, currentNode, handleZoom]);
+  }, [currentNodeId, workflow.edges, currentNode, handleZoom, handleRotation]);
 
   const handleCalibrationComplete = useCallback(() => {
     setIsCalibrating(false);
@@ -455,6 +482,31 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                 </div>
               )}
             </>
+          ) : currentNode?.data?.type === 'complexobject' ? (
+            <div style={{
+              maxWidth: '800px',
+              width: '100%',
+              height: '500px',
+              marginBottom: '20px',
+              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+              transformOrigin: zoomPoint 
+                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                : 'center center',
+              transition: 'transform 0.1s ease-out',
+              background: '#f0f0f0',
+              borderRadius: '8px',
+              overflow: 'hidden'
+            }}>
+              {currentNode.data.splineScene && (
+                <Spline 
+                  scene={currentNode.data.splineScene}
+                  onLoad={(splineApp) => {
+                    console.log('Available object:', splineApp.findObjectById('831d45ec-ad9a-4c09-a588-70b67dd0d781'));
+                    setSplineApp(splineApp);
+                  }}
+                />
+              )}
+            </div>
           ) : (
             <div style={{ 
               fontSize: '1.2em',
@@ -495,6 +547,59 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   <span>{workflow.nodes.find(n => n.id === edge.target)?.data.label}</span>
                 </div>
               ))}
+              
+              {currentNode?.data?.type === 'complexobject' && currentNode.data.rotationGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
+                    {currentNode.data.rotationGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Rotate Object</span>
+                </div>
+              )}
+              
+              {currentNode?.data?.zoomInGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                    {currentNode.data.zoomInGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Zoom In</span>
+                </div>
+              )}
+              {currentNode?.data?.zoomOutGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                    {currentNode.data.zoomOutGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Zoom Out</span>
+                </div>
+              )}
             </div>
           )}
         </div>
