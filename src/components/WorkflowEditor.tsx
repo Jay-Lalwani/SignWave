@@ -43,8 +43,14 @@ export type SlideNodeData = {
   // Spline specific properties
   splineScene?: string;
   splineLoaded?: boolean;
-  rotationGesture?: string;
-  rotationDegree?: { x: number; y: number };
+  rotationGesture?: {
+    left?: string;
+    right?: string;
+  };
+  rotationDegree?: {
+    left?: { x: number; y: number };
+    right?: { x: number; y: number };
+  };
 };
 
 const BaseNodeStyle = {
@@ -485,7 +491,12 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
           scrubBackwardGesture: ''
         } : {}),
         ...(type === 'imageNode' ? { url: '' } : {}),
-        ...(type === 'complexObjectNode' ? { rotationDegree: { x: 0, y: 0 } } : {}), //will add more later
+        ...(type === 'complexObjectNode' ? { 
+          rotationDegree: { 
+            left: { x: 0, y: 0 }, 
+            right: { x: 0, y: 0 } 
+          } 
+        } : {}),
         ...(type === 'apiNode' ? { apiEndpoint: '', apiMethod: 'GET', apiPayload: '' } : {})
       },
       position: {
@@ -769,65 +780,149 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                   />
                 </div>
               )}
-              <div style={{ marginTop: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Rotation Gesture:</label>
-                <select
-                  value={nodeForm.rotationGesture || ''}
-                  onChange={(e) => handleNodeFormChange({ rotationGesture: e.target.value })}
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                >
-                  <option value="">Select a gesture...</option>
-                  {AVAILABLE_GESTURES.map(gesture => (
-                    <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
-                  ))}
-                </select>
-              </div>
+              <div style={{ marginTop: '20px' }}>
+                <h4>Rotation Controls</h4>
+                
+                {/* Left Rotation */}
+                <div style={{ marginTop: '15px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Left Rotation:</label>
+                  <select
+                    value={nodeForm.rotationGesture?.left || ''}
+                    onChange={(e) => handleNodeFormChange({ 
+                      rotationGesture: { 
+                        ...nodeForm.rotationGesture,
+                        left: e.target.value 
+                      }
+                    })}
+                    style={{ 
+                      width: '100%', 
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    <option value="">Select a gesture...</option>
+                    {AVAILABLE_GESTURES.map(gesture => (
+                      <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                    ))}
+                  </select>
 
-              <div style={{ marginTop: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Rotation Amount (degrees):</label>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input
-                    type="number"
-                    placeholder="X rotation"
-                    value={nodeForm.rotationDegree?.x || ''}
-                    onChange={(e) => handleNodeFormChange({ 
-                      rotationDegree: { 
-                        x: Number(e.target.value), 
-                        y: nodeForm.rotationDegree?.y || 0 
-                      } 
-                    })}
-                    style={{
-                      width: '50%',
-                      padding: '8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px'
-                    }}
-                  />
-                  <input
-                    type="number"
-                    placeholder="Y rotation"
-                    value={nodeForm.rotationDegree?.y || ''}
-                    onChange={(e) => handleNodeFormChange({ 
-                      rotationDegree: { 
-                        x: nodeForm.rotationDegree?.x || 0, 
-                        y: Number(e.target.value) 
-                      } 
-                    })}
-                    style={{
-                      width: '50%',
-                      padding: '8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px'
-                    }}
-                  />
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="X rotation"
+                      value={nodeForm.rotationDegree?.left?.x || ''}
+                      onChange={(e) => handleNodeFormChange({ 
+                        rotationDegree: { 
+                          ...nodeForm.rotationDegree,
+                          left: { 
+                            x: Math.max(0, Number(e.target.value)),
+                            y: nodeForm.rotationDegree?.left?.y || 0 
+                          }
+                        } 
+                      })}
+                      style={{
+                        width: '50%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Y rotation"
+                      value={nodeForm.rotationDegree?.left?.y || ''}
+                      onChange={(e) => handleNodeFormChange({ 
+                        rotationDegree: { 
+                          ...nodeForm.rotationDegree,
+                          left: { 
+                            x: nodeForm.rotationDegree?.left?.x || 0,
+                            y: Math.max(0, Number(e.target.value))
+                          }
+                        } 
+                      })}
+                      style={{
+                        width: '50%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.8em', color: '#666', marginTop: '5px' }}>
-                  Enter rotation degrees for X and Y axes
+
+                {/* Right Rotation */}
+                <div style={{ marginTop: '15px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Right Rotation:</label>
+                  <select
+                    value={nodeForm.rotationGesture?.right || ''}
+                    onChange={(e) => handleNodeFormChange({ 
+                      rotationGesture: { 
+                        ...nodeForm.rotationGesture,
+                        right: e.target.value 
+                      }
+                    })}
+                    style={{ 
+                      width: '100%', 
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    <option value="">Select a gesture...</option>
+                    {AVAILABLE_GESTURES.map(gesture => (
+                      <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="X rotation"
+                      value={nodeForm.rotationDegree?.right?.x || ''}
+                      onChange={(e) => handleNodeFormChange({ 
+                        rotationDegree: { 
+                          ...nodeForm.rotationDegree,
+                          right: { 
+                            x: Math.max(0, Number(e.target.value)),
+                            y: nodeForm.rotationDegree?.right?.y || 0 
+                          }
+                        } 
+                      })}
+                      style={{
+                        width: '50%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Y rotation"
+                      value={nodeForm.rotationDegree?.right?.y || ''}
+                      onChange={(e) => handleNodeFormChange({ 
+                        rotationDegree: { 
+                          ...nodeForm.rotationDegree,
+                          right: { 
+                            x: nodeForm.rotationDegree?.right?.x || 0,
+                            y: Math.max(0, Number(e.target.value))
+                          }
+                        } 
+                      })}
+                      style={{
+                        width: '50%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

@@ -25,7 +25,6 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [showWebcam, setShowWebcam] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomPoint, setZoomPoint] = useState<{ x: number; y: number } | null>(null);
-  const [rotationDegree, setRotation] = useState<{ x: number; y: number } | null>(null); //Rotation of the 3JS object
   const zoomAnimationRef = useRef<number>();
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 4;
@@ -68,17 +67,19 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     };
   }, []);
 
-  const handleRotation = useCallback(() => {
-    if (rotationDegree && splineApp) {
+  const handleRotation = useCallback((direction: 'left' | 'right') => {
+    if (currentNode?.data?.rotationDegree?.[direction] && splineApp) {
       // Get the first 3D object in the scene by its ID
       const obj = splineApp.findObjectById('831d45ec-ad9a-4c09-a588-70b67dd0d781');
       if (obj) {
-        // Apply rotation
-        obj.rotation.x += (rotationDegree.x * Math.PI) / 180;
-        obj.rotation.y += (rotationDegree.y * Math.PI) / 180;
+        const degrees = currentNode.data.rotationDegree[direction];
+        // Apply rotation with direction
+        const xMultiplier = direction === 'left' ? -1 : 1;
+        obj.rotation.x += (degrees.x * Math.PI * xMultiplier) / 180;
+        obj.rotation.y += (degrees.y * Math.PI * xMultiplier) / 180;
       }
     }
-  }, [rotationDegree, splineApp]);
+  }, [currentNode?.data?.rotationDegree, splineApp]);
 
   const handleZoom = useCallback((direction: 'in' | 'out') => {
     if (zoomAnimationRef.current) {
@@ -102,6 +103,25 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
 
     zoomAnimationRef.current = requestAnimationFrame(animate);
   }, []);
+
+  const handleSplineZoom = useCallback((direction: 'in' | 'out') => {
+    if (splineApp) {
+      // Cancel any existing zoom animation
+      if (zoomAnimationRef.current) {
+        cancelAnimationFrame(zoomAnimationRef.current);
+      }
+
+      const animate = () => {
+        const zoomDelta = direction === 'in' ? 0.05 : -0.05;
+        splineApp.setZoom(zoomDelta);
+
+        // Continue animation for smooth zooming
+        zoomAnimationRef.current = requestAnimationFrame(animate);
+      };
+
+      zoomAnimationRef.current = requestAnimationFrame(animate);
+    }
+  }, [splineApp]);
 
   const handleGesture = useCallback((result: GestureResult) => {
     // Find edges that start from current node
@@ -141,25 +161,34 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     // Handle zoom gestures
     if (currentNode?.data.zoomPoint) {
       if (result.gesture === currentNode.data.zoomInGesture) {
-        setZoomPoint(currentNode.data.zoomPoint);
         handleZoom('in');
         return;
       } else if (result.gesture === currentNode.data.zoomOutGesture) {
-        setZoomPoint(currentNode.data.zoomPoint);
+        handleZoom('out');
+        return;
+      }
+    }
+    //Handle zoom gestures for the complex object zoom in and zoom out gesture
+    if (currentNode?.data?.type === 'complexobject') {
+      if (result.gesture === currentNode.data.zoomInGesture) {
+        handleZoom('in');
+        return;
+      } else if (result.gesture === currentNode.data.zoomOutGesture) {
         handleZoom('out');
         return;
       }
     }
 
-    //<insert gesture> will rotate the 3JS object. the data type for the currenet node
-    //must be a 3js for this gesture to override the default behavior
+
+    //must be a complex object for this gesture to override the default behavior
     if (currentNode?.data?.type === 'complexobject') {
-      if (result.gesture === currentNode.data.rotationGesture) {
-        setRotation(currentNode.data.rotationDegree);
-        console.log(rotationDegree);
-        handleRotation();
+      if (result.gesture === currentNode.data.rotationGesture?.left) {
+        handleRotation('left');
+        return;
+      } else if (result.gesture === currentNode.data.rotationGesture?.right) {
+        handleRotation('right');
+        return;
       }
-      return;
     }
     
     // Handle transitions
@@ -501,7 +530,9 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                 <Spline 
                   scene={currentNode.data.splineScene}
                   onLoad={(splineApp) => {
-                    console.log('Available object:', splineApp.findObjectById('831d45ec-ad9a-4c09-a588-70b67dd0d781'));
+                    // debugger findObjectById
+                    console.log('Available object:', 
+                      splineApp.findObjectById('831d45ec-ad9a-4c09-a588-70b67dd0d781'));
                     setSplineApp(splineApp);
                   }}
                 />
@@ -548,22 +579,43 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                 </div>
               ))}
               
-              {currentNode?.data?.type === 'complexobject' && currentNode.data.rotationGesture && (
-                <div style={{ 
-                  margin: '8px 0',
-                  padding: '8px',
-                  background: 'white',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
-                    {currentNode.data.rotationGesture}
-                  </span>
-                  <span style={{ color: '#666' }}>→</span>
-                  <span>Rotate Object</span>
-                </div>
+              {currentNode?.data?.type === 'complexobject' && (
+                <>
+                  {currentNode.data.rotationGesture?.left && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
+                        {currentNode.data.rotationGesture.left}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Rotate Left</span>
+                    </div>
+                  )}
+                  {currentNode.data.rotationGesture?.right && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
+                        {currentNode.data.rotationGesture.right}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Rotate Right</span>
+                    </div>
+                  )}
+                </>
               )}
               
               {currentNode?.data?.zoomInGesture && (
