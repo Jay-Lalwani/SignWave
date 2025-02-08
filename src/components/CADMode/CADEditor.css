@@ -1,0 +1,19 @@
+.cad-editor-container {
+  width: 100%;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: #1a1a1a;
+}
+
+.cad-editor-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+  outline: none;
+}
+
+/* Hide the container when not active */
+.cad-editor-container:not(.active) {
+  display: none;
+}

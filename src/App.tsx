@@ -2,8 +2,9 @@ import React, { useState, useCallback, useEffect } from 'react';
 import './App.css';
 import WorkflowEditor, { WorkflowData } from './components/WorkflowEditor';
 import PresentationMode from './components/PresentationMode';
+import CADController from './components/CADMode/CADController';
 
-type Mode = 'edit' | 'present';
+type Mode = 'edit' | 'present' | 'cad';
 
 const STORAGE_KEY = 'gesture_presentation_workflow';
 
@@ -48,18 +49,37 @@ function App() {
     setWorkflow(newWorkflow);
   }, []);
 
+  const handleModeChange = (newMode: Mode) => {
+    setMode(newMode);
+  };
+
   return (
     <div className="App">
       <header className="App-header">
-        <button onClick={() => setMode(mode === 'edit' ? 'present' : 'edit')}>
-          Switch to {mode === 'edit' ? 'Presentation' : 'Edit'} Mode
-        </button>
+        <div className="mode-controls">
+          <button onClick={() => handleModeChange('edit')} className={mode === 'edit' ? 'active' : ''}>
+            Edit Mode
+          </button>
+          <button onClick={() => handleModeChange('present')} className={mode === 'present' ? 'active' : ''}>
+            Present Mode
+          </button>
+          <button onClick={() => handleModeChange('cad')} className={mode === 'cad' ? 'active' : ''}>
+            CAD Mode
+          </button>
+        </div>
       </header>
       <main>
-        {mode === 'edit' ? (
+        {mode === 'edit' && (
           <WorkflowEditor onWorkflowUpdate={handleWorkflowUpdate} initialWorkflow={workflow} />
-        ) : (
+        )}
+        {mode === 'present' && (
           <PresentationMode workflow={workflow} />
+        )}
+        {mode === 'cad' && (
+          <CADController
+            isActive={true}
+            gestureData={mode === 'cad' ? undefined : null} // We'll integrate gesture data here
+          />
         )}
       </main>
     </div>
