@@ -206,7 +206,7 @@ const CADEditor: React.FC<CADEditorProps> = ({ isActive, gestureData }) => {
         <OrbitControls ref={orbitControlsRef} makeDefault />
       </Canvas>
 
-      {/* Enhanced Debug display */}
+      {/* Debug info */}
       <div className="debug-info">
         <div>Active: {isActive ? 'Yes' : 'No'}</div>
         <div>Drawing: {isDrawing ? 'Yes' : 'No'}</div>
@@ -219,19 +219,6 @@ const CADEditor: React.FC<CADEditorProps> = ({ isActive, gestureData }) => {
            Z: ${gestureData.handPosition.z.toFixed(1)}`
           : 'No Data'}</div>
       </div>
-
-      {/* Active Gesture Indicator */}
-      {gestureData && Date.now() - lastGestureTime < 1000 && (
-        <div className="active-gesture-indicator">
-          <div className="gesture-name">{gestureData.gesture}</div>
-          <div className="gesture-action">
-            {gestureData.gesture === 'Closed_Fist' && 'Drawing Mode'}
-            {gestureData.gesture === 'Victory' && 'Selection Mode'}
-            {gestureData.gesture === 'Pointing_Up' && 'Delete Mode'}
-            {gestureData.gesture === 'Open_Palm' && 'Camera Control'}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

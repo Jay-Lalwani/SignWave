@@ -57,9 +57,6 @@ const CADController: React.FC<CADControllerProps> = ({
         gestureData={gestureData}
       />
       <div className="cad-mode-controls">
-        <div className="cad-mode-indicator">
-          CAD Mode Active
-        </div>
         {gestureData && (
           <div className="gesture-status">
             <div className="current-gesture">
