@@ -69,8 +69,15 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   }, []);
 
   const handleRotation = useCallback((direction: 'left' | 'right') => {
+    console.log('Rotation called with direction:', direction);
+    console.log('Current node:', currentNode);
+    console.log('Available splineApps:', splineApps);
+    
     if (!currentNode?.data?.rotationDegree?.[direction] || !currentNode.data.splineScene) {
-      console.log('Missing rotation data or scene URL');
+      console.log('Missing rotation data:', {
+        rotationDegree: currentNode?.data?.rotationDegree,
+        splineScene: currentNode?.data?.splineScene
+      });
       return;
     }
     
@@ -79,18 +86,27 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       console.log('No splineApp found for scene:', currentNode.data.splineScene);
       return;
     } 
-    
-    const objects = splineApp.getAllObjects();
-    const obj = objects?.[0];
+    const allObjects = splineApp.getAllObjects();
+
+    //manually put the names of the spline objects :(
+    const obj = allObjects.find(obj => obj.name === 'chips' || obj.name === 'Bot');
+     
     if (obj) {
       const degrees = currentNode.data.rotationDegree[direction];
-      console.log('Rotating', direction, 'with degrees:', degrees);
+      console.log('Found rotatable object:', obj);
+      console.log('Applying rotation:', {
+        direction,
+        degrees,
+        currentRotation: { x: obj.rotation.x, y: obj.rotation.y }
+      });
       
       const xMultiplier = direction === 'left' ? -1 : 1;
-      obj.rotation.x += (degrees.x * Math.PI * xMultiplier) / 180;
-      obj.rotation.y += (degrees.y * Math.PI * xMultiplier) / 180;
+      obj.rotation.x = obj.rotation.x + (degrees.x * Math.PI * xMultiplier) / 180;
+      obj.rotation.y = obj.rotation.y + (degrees.y * Math.PI * xMultiplier) / 180;
+    } else {
+      console.log('No suitable object found for rotation');
     }
-  }, [currentNode?.data?.rotationDegree, currentNode?.data?.splineScene, splineApps]);
+  }, [splineApps, currentNode]);
 
   const handleZoom = useCallback((direction: 'in' | 'out') => {
     if (zoomAnimationRef.current) {
@@ -122,9 +138,9 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
         cancelAnimationFrame(zoomAnimationRef.current);
       }
 
-      const MIN_ZOOM = 0.01;  // 20% zoom
-      const MAX_ZOOM = 10.0;  // a huge zoom
-      const ZOOM_SPEED = 0.1; // Faster zoom speed
+      const MIN_ZOOM = 0.1;  // 20% zoom
+      const MAX_ZOOM = 4.0;  // a huge zoom
+      const ZOOM_SPEED = 0.2; // Faster zoom speed
 
       const animate = () => {
         const zoomFactor = direction === 'in' ? (1 - ZOOM_SPEED) : (1 + ZOOM_SPEED);
