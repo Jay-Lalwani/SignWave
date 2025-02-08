@@ -6,7 +6,6 @@ import ReactFlow, {
   Controls,
   Background,
   useNodesState,
-
   useEdgesState,
   addEdge,
   Connection,
@@ -34,6 +33,7 @@ export type SlideNodeData = {
   playPauseGesture?: string;
   scrubForwardGesture?: string;
   scrubBackwardGesture?: string;
+  scrubAmount?: number; // seconds to scrub forward/backward
   apiEndpoint?: string;
   apiMethod?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   apiPayload?: string;
@@ -51,6 +51,17 @@ export type SlideNodeData = {
     left?: { x: number; y: number };
     right?: { x: number; y: number };
   };
+  // Zoom configuration
+  minZoom?: number;
+  maxZoom?: number;
+  // Pointer configuration
+  pointerColor?: string;
+  pointerSize?: number;
+  // Pointer control gestures
+  pointerStartGesture?: string;
+  pointerStopGesture?: string;
+  // New field: choose between laser (red dot) or canvas (writing)
+  pointerMode?: "laser" | "canvas";
 };
 
 const BaseNodeStyle = {
@@ -362,6 +373,45 @@ type Props = {
   initialWorkflow?: WorkflowData;
 };
 
+// Collapsible section component
+const FormSection: React.FC<{
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}> = ({ title, children, defaultOpen = false }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginTop: '15px', borderTop: '1px solid #eee' }}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: '100%',
+          padding: '10px',
+          background: 'none',
+          border: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          fontSize: '1em',
+          fontWeight: 'bold',
+          color: '#666'
+        }}
+      >
+        {title}
+        <span style={{ transform: `rotate(${isOpen ? 180 : 0}deg)`, transition: 'transform 0.2s' }}>
+          ▼
+        </span>
+      </button>
+      {isOpen && (
+        <div style={{ padding: '10px' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState(
     initialWorkflow?.nodes || initialNodes
@@ -505,7 +555,9 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
             right: { x: 0, y: 0 } 
           } 
         } : {}),
-        ...(type === 'apiNode' ? { apiEndpoint: '', apiMethod: 'GET', apiPayload: '' } : {})
+        ...(type === 'apiNode' ? { apiEndpoint: '', apiMethod: 'GET', apiPayload: '' } : {}),
+        // Default pointer mode is "laser"
+        pointerMode: "laser"
       },
       position: {
         x: Math.random() * 300 + 100,
@@ -707,6 +759,7 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
             ×
           </button>
           <h3 style={{ marginTop: 0 }}>Edit Node</h3>
+          {/* Basic settings always visible */}
           <div style={{ marginBottom: '15px' }}>
             <label style={{ display: 'block', marginBottom: '5px' }}>Label:</label>
             <input
@@ -722,9 +775,9 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
             />
           </div>
 
+          {/* Content section based on node type */}
           {nodeForm.type === 'text' && (
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>Content:</label>
+            <FormSection title="Content" defaultOpen={true}>
               <textarea
                 value={nodeForm.content || ''}
                 onChange={(e) => handleNodeFormChange({ content: e.target.value })}
@@ -737,12 +790,11 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                   resize: 'vertical'
                 }}
               />
-            </div>
+            </FormSection>
           )}
 
           {nodeForm.type === 'image' && (
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>Insert Complex Object Url:</label>
+            <FormSection title="Image Settings" defaultOpen={true}>
               <input
                 type="text"
                 value={nodeForm.url || ''}
@@ -753,6 +805,7 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                   border: '1px solid #ddd',
                   borderRadius: '4px'
                 }}
+                placeholder="Enter image URL"
               />
               {nodeForm.url && (
                 <img 
@@ -766,57 +819,57 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                   }}
                 />
               )}
-            </div>
+            </FormSection>
           )}
 
           {nodeForm.type === 'complexobject' && (
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>Spline Scene URL:</label>
-              <input
-                type="text"
-                value={nodeForm.splineScene || ''}
-                onChange={(e) => {
-                  try {
-                    const url = new URL(e.target.value);
-                    handleNodeFormChange({ splineScene: e.target.value });
-                  } catch (error) {
-                    console.error('Invalid URL:', error);
-                    // Optionally show error message to user
-                    // Still allow setting the value, but maybe show it in red
-                    // handleNodeFormChange({ splineScene: e.target.value });
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  borderColor: isValidUrl(nodeForm.splineScene) ? '#ddd' : '#ff0072'
-                }}
-                placeholder="https://prod.spline.design/..."
-              />
-              {nodeForm.splineScene && isValidUrl(nodeForm.splineScene) && (
-                <div style={{ 
-                  width: '100%',
-                  height: '400px',
-                  marginTop: '10px',
-                  borderRadius: '4px',
-                  overflow: 'hidden',
-                  background: '#f0f0f0'
-                }}>
-                  <Spline 
-                    scene={nodeForm.splineScene}
-                    onLoad={() => handleNodeFormChange({ splineLoaded: true })}
+            <>
+              <FormSection title="Complex Object Settings" defaultOpen={true}>
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px' }}>Spline Scene URL:</label>
+                  <input
+                    type="text"
+                    value={nodeForm.splineScene || ''}
+                    onChange={(e) => {
+                      try {
+                        const url = new URL(e.target.value);
+                        handleNodeFormChange({ splineScene: e.target.value });
+                      } catch (error) {
+                        console.error('Invalid URL:', error);
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      borderColor: isValidUrl(nodeForm.splineScene) ? '#ddd' : '#ff0072'
+                    }}
+                    placeholder="https://prod.spline.design/..."
                   />
+                  {nodeForm.splineScene && isValidUrl(nodeForm.splineScene) && (
+                    <div style={{ 
+                      width: '100%',
+                      height: '400px',
+                      marginTop: '10px',
+                      borderRadius: '4px',
+                      overflow: 'hidden',
+                      background: '#f0f0f0'
+                    }}>
+                      <Spline 
+                        scene={nodeForm.splineScene}
+                        onLoad={() => handleNodeFormChange({ splineLoaded: true })}
+                      />
+                    </div>
+                  )}
                 </div>
-              )}
-              <div style={{ marginTop: '20px' }}>
-                <h4>Rotation Controls</h4>
-                
+              </FormSection>
+
+              <FormSection title="Rotation Controls">
                 {/* Left Rotation */}
-                <div style={{ marginTop: '15px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
+                <div style={{ marginBottom: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Left Rotation:</label>
-                <select
+                  <select
                     value={nodeForm.rotationGesture?.left || ''}
                     onChange={(e) => handleNodeFormChange({ 
                       rotationGesture: { 
@@ -824,19 +877,19 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                         left: e.target.value 
                       }
                     })}
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px',
-                    border: '1px solid #ddd',
+                    style={{ 
+                      width: '100%', 
+                      padding: '8px',
+                      border: '1px solid #ddd',
                       borderRadius: '4px',
                       marginBottom: '10px'
-                  }}
-                >
-                  <option value="">Select a gesture...</option>
-                  {AVAILABLE_GESTURES.map(gesture => (
-                    <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
-                  ))}
-                </select>
+                    }}
+                  >
+                    <option value="">Select a gesture...</option>
+                    {AVAILABLE_GESTURES.map(gesture => (
+                      <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                    ))}
+                  </select>
 
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <input
@@ -882,10 +935,10 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                       }}
                     />
                   </div>
-              </div>
+                </div>
 
                 {/* Right Rotation */}
-                <div style={{ marginTop: '15px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
+                <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Right Rotation:</label>
                   <select
                     value={nodeForm.rotationGesture?.right || ''}
@@ -909,104 +962,110 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                     ))}
                   </select>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input
-                    type="number"
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input
+                      type="number"
                       min="0"
-                    placeholder="X rotation"
+                      placeholder="X rotation"
                       value={nodeForm.rotationDegree?.right?.x || ''}
-                    onChange={(e) => handleNodeFormChange({ 
-                      rotationDegree: { 
+                      onChange={(e) => handleNodeFormChange({ 
+                        rotationDegree: { 
                           ...nodeForm.rotationDegree,
                           right: { 
                             x: Math.max(0, Number(e.target.value)),
                             y: nodeForm.rotationDegree?.right?.y || 0 
                           }
-                      } 
-                    })}
-                    style={{
-                      width: '50%',
-                      padding: '8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px'
-                    }}
-                  />
-                  <input
-                    type="number"
+                        } 
+                      })}
+                      style={{
+                        width: '50%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                    <input
+                      type="number"
                       min="0"
-                    placeholder="Y rotation"
+                      placeholder="Y rotation"
                       value={nodeForm.rotationDegree?.right?.y || ''}
-                    onChange={(e) => handleNodeFormChange({ 
-                      rotationDegree: { 
+                      onChange={(e) => handleNodeFormChange({ 
+                        rotationDegree: { 
                           ...nodeForm.rotationDegree,
                           right: { 
                             x: nodeForm.rotationDegree?.right?.x || 0,
                             y: Math.max(0, Number(e.target.value))
                           }
-                      } 
-                    })}
+                        } 
+                      })}
+                      style={{
+                        width: '50%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                  </div>
+                </div>
+              </FormSection>
+            </>
+          )}
+
+          {nodeForm.type === 'video' && (
+            <>
+              <FormSection title="Video Settings" defaultOpen={true}>
+                <input
+                  type="text"
+                  value={nodeForm.videoUrl || ''}
+                  onChange={(e) => handleNodeFormChange({ videoUrl: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px'
+                  }}
+                  placeholder="Enter video URL"
+                />
+                <div style={{ marginTop: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', marginBottom: '5px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={nodeForm.autoplay || false}
+                      onChange={(e) => handleNodeFormChange({ autoplay: e.target.checked })}
+                      style={{ marginRight: '8px' }}
+                    />
+                    Autoplay
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={nodeForm.loop || false}
+                      onChange={(e) => handleNodeFormChange({ loop: e.target.checked })}
+                      style={{ marginRight: '8px' }}
+                    />
+                    Loop video
+                  </label>
+                </div>
+                <div style={{ marginTop: '10px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px' }}>Scrub Amount (seconds):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="Default: 5"
+                    value={nodeForm.scrubAmount || ''}
+                    onChange={(e) => handleNodeFormChange({ scrubAmount: Number(e.target.value) })}
                     style={{
-                      width: '50%',
+                      width: '100%',
                       padding: '8px',
                       border: '1px solid #ddd',
                       borderRadius: '4px'
                     }}
                   />
                 </div>
-                </div>
-              </div>
-            </div>
-          )}
+              </FormSection>
 
-          {nodeForm.type === 'video' && (
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>Video URL:</label>
-              <input
-                type="text"
-                value={nodeForm.videoUrl || ''}
-                onChange={(e) => handleNodeFormChange({ videoUrl: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px'
-                }}
-              />
-              {nodeForm.videoUrl && (
-                <video 
-                  src={nodeForm.videoUrl}
-                  controls
-                  style={{
-                    width: '100%',
-                    marginTop: '10px',
-                    borderRadius: '4px'
-                  }}
-                />
-              )}
-              <div style={{ marginTop: '10px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', marginBottom: '5px', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={nodeForm.autoplay || false}
-                    onChange={(e) => handleNodeFormChange({ autoplay: e.target.checked })}
-                    style={{ marginRight: '8px' }}
-                  />
-                  Autoplay
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={nodeForm.loop || false}
-                    onChange={(e) => handleNodeFormChange({ loop: e.target.checked })}
-                    style={{ marginRight: '8px' }}
-                  />
-                  Loop video
-                </label>
-              </div>
-
-              <div style={{ marginTop: '20px' }}>
-                <h4 style={{ marginBottom: '10px' }}>Video Control Gestures</h4>
-                
+              <FormSection title="Video Control Gestures">
                 <div style={{ marginBottom: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '5px' }}>Play/Pause Gesture:</label>
                   <select
@@ -1063,12 +1122,12 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                     ))}
                   </select>
                 </div>
-              </div>
-            </div>
+              </FormSection>
+            </>
           )}
 
           {nodeForm.type === 'api' && (
-            <>
+            <FormSection title="API Settings" defaultOpen={true}>
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', marginBottom: '5px' }}>API Endpoint:</label>
                 <input
@@ -1119,10 +1178,10 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                   }}
                 />
               </div>
-            </>
+            </FormSection>
           )}
 
-          <div style={{ marginBottom: '15px' }}>
+          <FormSection title="Zoom Settings">
             <label style={{ display: 'block', marginBottom: '5px' }}>Zoom Point:</label>
             <div style={{ display: 'flex', gap: '10px' }}>
               <input
@@ -1165,6 +1224,42 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
             </div>
 
             <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Min Zoom Level:</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                placeholder="Default: 1"
+                value={nodeForm.minZoom || ''}
+                onChange={(e) => handleNodeFormChange({ minZoom: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Max Zoom Level:</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                placeholder="Default: 4"
+                value={nodeForm.maxZoom || ''}
+                onChange={(e) => handleNodeFormChange({ maxZoom: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
               <label style={{ display: 'block', marginBottom: '5px' }}>Zoom In Gesture:</label>
               <select
                 value={nodeForm.zoomInGesture || ''}
@@ -1201,37 +1296,130 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                 ))}
               </select>
             </div>
-          </div>
+          </FormSection>
 
-          <button
-            onClick={() => {
-              setNodes(nds => {
-                const filtered = nds.filter(n => n.id !== selectedNode.id);
-                setEdges(eds => {
-                  const updatedEdges = eds.filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id);
-                  onWorkflowUpdate?.({ nodes: filtered, edges: updatedEdges });
-                  return updatedEdges;
+          <FormSection title="Pointer Settings">
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Pointer Mode:</label>
+              <select
+                value={nodeForm.pointerMode || 'laser'}
+                onChange={(e) => handleNodeFormChange({ pointerMode: e.target.value as "laser" | "canvas" })}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="laser">Laser (Red Dot)</option>
+                <option value="canvas">Canvas (Writing)</option>
+              </select>
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Pointer Color:</label>
+              <input
+                type="color"
+                value={nodeForm.pointerColor || '#ff0000'}
+                onChange={(e) => handleNodeFormChange({ pointerColor: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '2px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Pointer Size:</label>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                step="1"
+                placeholder="Default: 10"
+                value={nodeForm.pointerSize || ''}
+                onChange={(e) => handleNodeFormChange({ pointerSize: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Pointer Start Gesture:</label>
+              <select
+                value={nodeForm.pointerStartGesture || ''}
+                onChange={(e) => handleNodeFormChange({ pointerStartGesture: e.target.value })}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Select a gesture...</option>
+                {AVAILABLE_GESTURES.map(gesture => (
+                  <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Pointer Stop Gesture:</label>
+              <select
+                value={nodeForm.pointerStopGesture || ''}
+                onChange={(e) => handleNodeFormChange({ pointerStopGesture: e.target.value })}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Select a gesture...</option>
+                {AVAILABLE_GESTURES.map(gesture => (
+                  <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
+          </FormSection>
+
+          <div style={{ marginTop: '20px' }}>
+            <button
+              onClick={() => {
+                setNodes(nds => {
+                  const filtered = nds.filter(n => n.id !== selectedNode.id);
+                  setEdges(eds => {
+                    const updatedEdges = eds.filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id);
+                    onWorkflowUpdate?.({ nodes: filtered, edges: updatedEdges });
+                    return updatedEdges;
+                  });
+                  return filtered;
                 });
-                return filtered;
-              });
-              setSelectedNode(null);
-            }}
-            style={{
-              padding: '8px 16px',
-              background: '#ff0072',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              width: '100%'
-            }}
-          >
-            Delete Node
-          </button>
+                setSelectedNode(null);
+              }}
+              style={{
+                padding: '8px 16px',
+                background: '#ff0072',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                width: '100%'
+              }}
+            >
+              Delete Node
+            </button>
+          </div>
         </div>
       )}
     </div>
   );
 };
 
-export default WorkflowEditor; 
+export default WorkflowEditor;

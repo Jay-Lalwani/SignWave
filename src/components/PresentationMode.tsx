@@ -3,6 +3,8 @@ import { Node, Edge } from 'reactflow';
 import GestureRecognizer, { GestureResult } from './GestureRecognizer';
 import Spline from '@splinetool/react-spline';
 import { Application } from '@splinetool/runtime';
+import FingerCursor from './FingerCursor';
+import CanvasPointer from './CanvasPointer';
 
 type Props = {
   workflow: {
@@ -56,8 +58,12 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const lastPlayPauseTime = useRef<number>(0);
   const [splineApps, setSplineApps] = useState<{ [key: string]: Application }>({});
   const [currentZoom, setCurrentZoom] = useState(1.0);
+  const [cursorFollow, setCursorFollow] = useState(false);
   
   const currentNode = workflow.nodes.find(n => n.id === currentNodeId);
+
+  // Add this near other derived values
+  const pointerMode = currentNode?.data?.pointerMode || "laser";
 
   // Handle continuous zoom
   useEffect(() => {
@@ -163,6 +169,15 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   }, [splineApps, currentNode?.data?.splineScene, currentZoom]);
 
   const handleGesture = useCallback((result: GestureResult) => {
+    // Add pointer controls at the start of the function
+    if (currentNode?.data?.pointerStartGesture && result.gesture === currentNode.data.pointerStartGesture) {
+      setCursorFollow(true);
+      return;
+    } else if (currentNode?.data?.pointerStopGesture && result.gesture === currentNode.data.pointerStopGesture) {
+      setCursorFollow(false);
+      return;
+    }
+
     // Find edges that start from current node
     const possibleTransitions = workflow.edges.filter(e => 
       e.source === currentNodeId && 
@@ -563,7 +578,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
               borderRadius: '8px',
               overflow: 'hidden'
             }}>
-              {currentNode.data.splineScene && (
+              {currentNode.data.splineScene && currentNode.data.type === 'complexobject' && (
                 <Spline 
                   scene={currentNode.data.splineScene}
                   onLoad={(splineApp) => {
@@ -599,6 +614,41 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
               <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#666' }}>
                 Available Gestures:
               </div>
+              {currentNode?.data?.pointerStartGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
+                    {currentNode.data.pointerStartGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Start {pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                </div>
+              )}
+              {currentNode?.data?.pointerStopGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
+                    {currentNode.data.pointerStopGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Stop {pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                </div>
+              )}
+              
               {outgoingEdges.map(edge => (
                 <div key={edge.id} style={{ 
                   margin: '8px 0',
@@ -693,6 +743,18 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Add pointer overlay at the end, before the closing div */}
+      {cursorFollow && (pointerMode === "laser" ? 
+        <FingerCursor 
+          color={currentNode?.data?.pointerColor || '#ff0000'} 
+          size={currentNode?.data?.pointerSize || 10} 
+        /> : 
+        <CanvasPointer 
+          color={currentNode?.data?.pointerColor || '#ff0000'} 
+          size={currentNode?.data?.pointerSize || 10} 
+        />
       )}
     </div>
   );
