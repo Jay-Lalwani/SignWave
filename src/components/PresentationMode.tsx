@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Node, Edge } from 'reactflow';
 import GestureRecognizer, { GestureResult } from './GestureRecognizer';
+import { VoiceControlButton } from './VoiceControlButton';
+import { useVoiceNavigation } from '../hooks/useVoiceNavigation';
 
 type Props = {
   workflow: {
@@ -54,6 +56,22 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const lastPlayPauseTime = useRef<number>(0);
   
   const currentNode = workflow.nodes.find(n => n.id === currentNodeId);
+
+  const { 
+    handleNextSlide, 
+    handlePreviousSlide, 
+    handleNavigateToTitle, 
+    slides,
+    isListening,
+    startListening,
+    stopListening,
+    isSupported,
+    error 
+  } = useVoiceNavigation({
+    nodes: workflow.nodes,
+    currentNodeId,
+    setCurrentNodeId
+  });
 
   // Handle continuous zoom
   useEffect(() => {
@@ -497,6 +515,17 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
               ))}
             </div>
           )}
+          <VoiceControlButton 
+            onNavigateNext={handleNextSlide}
+            onNavigateBack={handlePreviousSlide}
+            onNavigateToTitle={handleNavigateToTitle}
+            availableTitles={slides.map(slide => slide.title)}
+            isListening={isListening}
+            startListening={startListening}
+            stopListening={stopListening}
+            isSupported={isSupported}
+            error={error}
+          />
         </div>
       )}
     </div>
