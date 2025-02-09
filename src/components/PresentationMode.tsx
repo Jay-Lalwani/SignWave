@@ -9,6 +9,18 @@ import { useTheme } from '../context/ThemeContext';
 import FingerCursor from './FingerCursor';
 import CanvasPointer from './CanvasPointer';
 
+declare module '@splinetool/react-spline' {
+  const Spline: React.FC<{ scene: string; onLoad: (app: any) => void }>;
+  export default Spline;
+}
+
+declare module '@splinetool/runtime' {
+  export interface Application {
+    getAllObjects: () => any[];
+    setZoom: (zoom: number) => void;
+  }
+}
+
 type Props = {
   workflow: {
     nodes: Node[];
@@ -134,7 +146,13 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     const allObjects = splineApp.getAllObjects();
 
     //manually put the names of the spline objects :(
-    const obj = allObjects.find(obj => obj.name === 'chips' || obj.name === 'Scene'|| obj.name === 'Text'  || obj.name === 'group' || obj.name === 'swing Scene');
+    const obj = allObjects.find((obj: { name: string }) => 
+      obj.name === 'chips' || 
+      obj.name === 'Scene' || 
+      obj.name === 'Text' || 
+      obj.name === 'group' || 
+      obj.name === 'swing Scene'
+    );
      
     if (obj) {
       const degrees = currentNode.data.rotationDegree[direction];      
@@ -543,367 +561,365 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
           )}
         </div>
 
-      {!isCalibrating && (
-        <div style={{ 
-          width: '100%', 
-          height: '100%', 
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center', 
-          justifyContent: 'center',
-          padding: '20px',
-          overflow: 'hidden'
-        }}>
+        {!isCalibrating && (
           <div style={{ 
-            fontSize: '2em',
-            marginBottom: '20px',
-            transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
-            transformOrigin: zoomPoint 
-              ? `${zoomPoint.x}% ${zoomPoint.y}%` 
-              : 'center center',
-            transition: 'transform 0.1s ease-out'
+            width: '100%', 
+            height: '100%', 
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center', 
+            justifyContent: 'center',
+            padding: '20px',
+            overflow: 'hidden'
           }}>
-            {currentNode?.data?.label || 'No content'}
-          </div>
-          {currentNode?.data?.type === 'complexobject' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+            <div style={{ 
+              fontSize: '2em',
+              marginBottom: '20px',
+              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+              transformOrigin: zoomPoint 
+                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                : 'center center',
+              transition: 'transform 0.1s ease-out'
+            }}>
+              {currentNode?.data?.label || 'No content'}
+            </div>
+            {currentNode?.data?.type === 'complexobject' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+                <div style={{
+                  maxWidth: '800px',
+                  width: '100%',
+                  height: '500px',
+                  transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+                  transformOrigin: zoomPoint 
+                    ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                    : 'center center',
+                  transition: 'transform 0.1s ease-out',
+                  background: '#f0f0f0',
+                  borderRadius: '8px',
+                  overflow: 'hidden'
+                }}>
+                  {currentNode.data.splineScene && (
+                    <Spline 
+                      scene={currentNode.data.splineScene}
+                      onLoad={(splineApp: Application) => {
+                        setSplineApps(prev => ({
+                          ...prev,
+                          [currentNode.data.splineScene]: splineApp
+                        }));
+                      }}
+                    />
+                  )}
+                </div>
+                <div style={{ 
+                  fontSize: '1.5em',
+                  maxWidth: '800px',
+                  textAlign: 'center',
+                  color: '#333'
+                }}>
+                  {currentNode?.data?.label || 'No content'}
+                </div>
+              </div>
+            ) : null}
+            {currentNode?.data?.type === 'image' ? (
               <div style={{
                 maxWidth: '800px',
                 width: '100%',
-                height: '500px',
+                marginBottom: '20px',
                 transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
                 transformOrigin: zoomPoint 
                   ? `${zoomPoint.x}% ${zoomPoint.y}%` 
                   : 'center center',
-                transition: 'transform 0.1s ease-out',
-                background: '#f0f0f0',
-                borderRadius: '8px',
-                overflow: 'hidden'
+                transition: 'transform 0.1s ease-out'
               }}>
-                {currentNode.data.splineScene && (
-                  <Spline 
-                    scene={currentNode.data.splineScene}
-                    onLoad={(splineApp) => {
-                      setSplineApps(prev => ({
-                        ...prev,
-                        [currentNode.data.splineScene]: splineApp
-                      }));
-                    }}
-                  />
+                <img 
+                  src={currentNode.data.url} 
+                  alt={currentNode.data.label}
+                  style={{
+                    width: '100%',
+                    height: 'auto',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                />
+              </div>
+            ) : currentNode?.data?.type === 'video' ? (
+              <div style={{
+                maxWidth: '800px',
+                width: '100%',
+                marginBottom: '20px',
+                transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+                transformOrigin: zoomPoint 
+                  ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                  : 'center center',
+                transition: 'transform 0.1s ease-out'
+              }}>
+                <video
+                  ref={videoRef}
+                  src={currentNode.data.videoUrl}
+                  controls
+                  autoPlay={currentNode.data.autoplay}
+                  loop={currentNode.data.loop}
+                  style={{
+                    width: '100%',
+                    height: 'auto',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                />
+              </div>
+            ) : currentNode?.data?.type === 'api' ? (
+              <>
+                {apiError && (
+                  <div style={{
+                    color: '#ff0072',
+                    padding: '10px',
+                    background: '#fff0f4',
+                    borderRadius: '4px',
+                    marginTop: '10px',
+                    maxWidth: '800px',
+                    width: '100%'
+                  }}>
+                    <strong>Error:</strong> {apiError}
+                  </div>
+                )}
+                {apiResponse && (
+                  <div style={{
+                    marginTop: '20px',
+                    maxWidth: '800px',
+                    width: '100%'
+                  }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>API Response:</div>
+                    <pre style={{
+                      background: '#f8f8f8',
+                      padding: '15px',
+                      borderRadius: '8px',
+                      overflow: 'auto',
+                      maxHeight: '300px'
+                    }}>
+                      {JSON.stringify(apiResponse, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </>
+            ) : 
+            currentNode?.data?.type === 'complexobject' ? (
+              <>
+                {currentNode.data.rotationGesture?.left && (
+                  <div style={{ 
+                    margin: '8px 0',
+                    padding: '8px',
+                    background: 'white',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
+                      {currentNode.data.rotationGesture.left}
+                    </span>
+                    <span style={{ color: '#666' }}>→</span>
+                    <span>Rotate Left</span>
+                  </div>
+                )}
+                {currentNode.data.rotationGesture?.right && (
+                  <div style={{ 
+                    margin: '8px 0',
+                    padding: '8px',
+                    background: 'white',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
+                      {currentNode.data.rotationGesture.right}
+                    </span>
+                    <span style={{ color: '#666' }}>→</span>
+                    <span>Rotate Right</span>
+                  </div>
+                )}
+              </>
+            ):(
+              <div style={{ 
+                fontSize: '1.2em',
+                marginBottom: '20px',
+                whiteSpace: 'pre-wrap',
+                maxWidth: '800px',
+
+                textAlign: 'left'
+              }}>
+                {currentNode?.data?.content}
+              </div>
+            )}
+            {showGestures && (
+              <div style={{ 
+                marginTop: '20px', 
+                padding: '15px',
+                background: 'rgba(240,240,240,0.9)',
+                borderRadius: '8px',
+                maxWidth: '400px',
+                width: '100%'
+              }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#666' }}>
+                  Available Gestures:
+                </div>
+                {outgoingEdges.map(edge => (
+                  <div key={edge.id} style={{ 
+                    margin: '8px 0',
+                    padding: '8px',
+                    background: 'white',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ color: '#ff0072', fontWeight: 'bold' }}>
+                      {edge.data?.gesture}
+                    </span>
+                    <span style={{ color: '#666' }}>→</span>
+                    <span>{workflow.nodes.find(n => n.id === edge.target)?.data.label}</span>
+                  </div>
+                ))}
+
+                {currentNode?.data?.pointerStartGesture && (
+                  <div style={{ 
+                    margin: '8px 0',
+                    padding: '8px',
+                    background: 'white',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                      {currentNode.data.pointerStartGesture}
+                    </span>
+                    <span style={{ color: '#666' }}>→</span>
+                    <span>Start {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                  </div>
+                )}
+                {currentNode?.data?.pointerStopGesture && (
+                  <div style={{ 
+                    margin: '8px 0',
+                    padding: '8px',
+                    background: 'white',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                      {currentNode.data.pointerStopGesture}
+                    </span>
+                    <span style={{ color: '#666' }}>→</span>
+                    <span>Stop {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                  </div>
+                )}
+
+                {currentNode?.data?.zoomInGesture && (
+                  <div style={{ 
+                    margin: '8px 0',
+                    padding: '8px',
+                    background: 'white',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
+                      {currentNode.data.zoomInGesture}
+                    </span>
+                    <span style={{ color: '#666' }}>→</span>
+                    <span>Zoom In</span>
+                  </div>
+                )}
+                {currentNode?.data?.zoomOutGesture && (
+                  <div style={{ 
+                    margin: '8px 0',
+                    padding: '8px',
+                    background: 'white',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
+                      {currentNode.data.zoomOutGesture}
+                    </span>
+                    <span style={{ color: '#666' }}>→</span>
+                    <span>Zoom Out</span>
+                  </div>
+                )}
+
+                {currentNode?.data?.type === 'video' && (
+                  <>
+                    {currentNode.data.playPauseGesture && (
+                      <div style={{ 
+                        margin: '8px 0',
+                        padding: '8px',
+                        background: 'white',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px'
+                      }}>
+                        <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                          {currentNode.data.playPauseGesture}
+                        </span>
+                        <span style={{ color: '#666' }}>→</span>
+                        <span>Play/Pause Video</span>
+                      </div>
+                    )}
+                    {currentNode.data.scrubForwardGesture && (
+                      <div style={{ 
+                        margin: '8px 0',
+                        padding: '8px',
+                        background: 'white',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px'
+                      }}>
+                        <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                          {currentNode.data.scrubForwardGesture}
+                        </span>
+                        <span style={{ color: '#666' }}>→</span>
+                        <span>Fast Forward</span>
+                      </div>
+                    )}
+                    {currentNode.data.scrubBackwardGesture && (
+                      <div style={{ 
+                        margin: '8px 0',
+                        padding: '8px',
+                        background: 'white',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px'
+                      }}>
+                        <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                          {currentNode.data.scrubBackwardGesture}
+                        </span>
+                        <span style={{ color: '#666' }}>→</span>
+                        <span>Rewind</span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
-              <div style={{ 
-                fontSize: '1.5em',
-                maxWidth: '800px',
-                textAlign: 'center',
-                color: '#333'
-              }}>
-                {currentNode?.data?.label || 'No content'}
-              </div>
-            </div>
-          ) : null}
-          {currentNode?.data?.type === 'image' ? (
-            <div style={{
-              maxWidth: '800px',
-              width: '100%',
-              marginBottom: '20px',
-              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
-              transformOrigin: zoomPoint 
-                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
-                : 'center center',
-              transition: 'transform 0.1s ease-out'
-            }}>
-              <img 
-                src={currentNode.data.url} 
-                alt={currentNode.data.label}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                }}
-              />
-            </div>
-          ) : currentNode?.data?.type === 'video' ? (
-            <div style={{
-              maxWidth: '800px',
-              width: '100%',
-              marginBottom: '20px',
-              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
-              transformOrigin: zoomPoint 
-                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
-                : 'center center',
-              transition: 'transform 0.1s ease-out'
-            }}>
-              <video
-                ref={videoRef}
-                src={currentNode.data.videoUrl}
-                controls
-                autoPlay={currentNode.data.autoplay}
-                loop={currentNode.data.loop}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                }}
-              />
-              {showGestures}
-            </div>
-          ) : currentNode?.data?.type === 'api' ? (
-            <>
-              {apiError && (
-                <div style={{
-                  color: '#ff0072',
-                  padding: '10px',
-                  background: '#fff0f4',
-                  borderRadius: '4px',
-                  marginTop: '10px',
-                  maxWidth: '800px',
-                  width: '100%'
-                }}>
-                  <strong>Error:</strong> {apiError}
-                </div>
-              )}
-              {apiResponse && (
-                <div style={{
-                  marginTop: '20px',
-                  maxWidth: '800px',
-                  width: '100%'
-                }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>API Response:</div>
-                  <pre style={{
-                    background: '#f8f8f8',
-                    padding: '15px',
-                    borderRadius: '8px',
-                    overflow: 'auto',
-                    maxHeight: '300px'
-                  }}>
-                    {JSON.stringify(apiResponse, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </>
-          ) : 
-          currentNode?.data?.type === 'complexobject' ? (
-            <>
-              {currentNode.data.rotationGesture?.left && (
-                <div style={{ 
-                  margin: '8px 0',
-                  padding: '8px',
-                  background: 'white',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
-                    {currentNode.data.rotationGesture.left}
-                  </span>
-                  <span style={{ color: '#666' }}>→</span>
-                  <span>Rotate Left</span>
-                </div>
-              )}
-              {currentNode.data.rotationGesture?.right && (
-                <div style={{ 
-                  margin: '8px 0',
-                  padding: '8px',
-                  background: 'white',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
-                    {currentNode.data.rotationGesture.right}
-                  </span>
-                  <span style={{ color: '#666' }}>→</span>
-                  <span>Rotate Right</span>
-                </div>
-              )}
-            </>
-          ):(
-            <div style={{ 
-              fontSize: '1.2em',
-              marginBottom: '20px',
-              whiteSpace: 'pre-wrap',
-              maxWidth: '800px',
-
-              textAlign: 'left'
-            }}>
-              {currentNode?.data?.content}
-            </div>
-          )}
-          {showGestures && (
-            <div style={{ 
-              marginTop: '20px', 
-              padding: '15px',
-              background: 'rgba(240,240,240,0.9)',
-              borderRadius: '8px',
-              maxWidth: '400px',
-              width: '100%'
-            }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#666' }}>
-                Available Gestures:
-              </div>
-              {outgoingEdges.map(edge => (
-                <div key={edge.id} style={{ 
-                  margin: '8px 0',
-                  padding: '8px',
-                  background: 'white',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ color: '#ff0072', fontWeight: 'bold' }}>
-                    {edge.data?.gesture}
-                  </span>
-                  <span style={{ color: '#666' }}>→</span>
-                  <span>{workflow.nodes.find(n => n.id === edge.target)?.data.label}</span>
-                </div>
-              ))}
-
-              {currentNode?.data?.pointerStartGesture && (
-                <div style={{ 
-                  margin: '8px 0',
-                  padding: '8px',
-                  background: 'white',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
-                    {currentNode.data.pointerStartGesture}
-                  </span>
-                  <span style={{ color: '#666' }}>→</span>
-                  <span>Start {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
-                </div>
-              )}
-              {currentNode?.data?.pointerStopGesture && (
-                <div style={{ 
-                  margin: '8px 0',
-                  padding: '8px',
-                  background: 'white',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
-                    {currentNode.data.pointerStopGesture}
-                  </span>
-                  <span style={{ color: '#666' }}>→</span>
-                  <span>Stop {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
-                </div>
-              )}
-
-              {currentNode?.data?.zoomInGesture && (
-                <div style={{ 
-                  margin: '8px 0',
-                  padding: '8px',
-                  background: 'white',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
-                    {currentNode.data.zoomInGesture}
-                  </span>
-                  <span style={{ color: '#666' }}>→</span>
-                  <span>Zoom In</span>
-                </div>
-              )}
-              {currentNode?.data?.zoomOutGesture && (
-                <div style={{ 
-                  margin: '8px 0',
-                  padding: '8px',
-                  background: 'white',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
-                    {currentNode.data.zoomOutGesture}
-                  </span>
-                  <span style={{ color: '#666' }}>→</span>
-                  <span>Zoom Out</span>
-                </div>
-              )}
-
-              {currentNode?.data?.type === 'video' && (
-                <>
-                  {currentNode.data.playPauseGesture && (
-                    <div style={{ 
-                      margin: '8px 0',
-                      padding: '8px',
-                      background: 'white',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px'
-                    }}>
-                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
-                        {currentNode.data.playPauseGesture}
-                      </span>
-                      <span style={{ color: '#666' }}>→</span>
-                      <span>Play/Pause Video</span>
-                    </div>
-                  )}
-                  {currentNode.data.scrubForwardGesture && (
-                    <div style={{ 
-                      margin: '8px 0',
-                      padding: '8px',
-                      background: 'white',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px'
-                    }}>
-                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
-                        {currentNode.data.scrubForwardGesture}
-                      </span>
-                      <span style={{ color: '#666' }}>→</span>
-                      <span>Fast Forward</span>
-                    </div>
-                  )}
-                  {currentNode.data.scrubBackwardGesture && (
-                    <div style={{ 
-                      margin: '8px 0',
-                      padding: '8px',
-                      background: 'white',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px'
-                    }}>
-                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
-                        {currentNode.data.scrubBackwardGesture}
-                      </span>
-                      <span style={{ color: '#666' }}>→</span>
-                      <span>Rewind</span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-      {/* Add pointer overlay at the end, before the closing div */}
-      {cursorFollow && (pointerMode === "laser" ? 
-        <FingerCursor 
-          color={currentNode?.data?.pointerColor || '#ff0000'} 
-          size={currentNode?.data?.pointerSize || 10} 
-        /> : 
-        <CanvasPointer 
-          color={currentNode?.data?.pointerColor || '#ff0000'} 
-          size={currentNode?.data?.pointerSize || 10} 
-        />
-      )}
+            )}
+          </div>
+        )}
+        {cursorFollow && (pointerMode === "laser" ? 
+          <FingerCursor 
+            color={currentNode?.data?.pointerColor || '#ff0000'} 
+            size={currentNode?.data?.pointerSize || 10} 
+          /> : 
+          <CanvasPointer 
+            color={currentNode?.data?.pointerColor || '#ff0000'} 
+            size={currentNode?.data?.pointerSize || 10} 
+          />
+        )}
       </div>
     </div>
   );
