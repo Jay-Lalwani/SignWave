@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/SignWave/static/css/main.1dd5f82b.css",
+    "main.js": "/SignWave/static/js/main.3bd4ff81.js",
+    "static/js/453.5cb363bb.chunk.js": "/SignWave/static/js/453.5cb363bb.chunk.js",
+    "index.html": "/SignWave/index.html",
+    "main.1dd5f82b.css.map": "/SignWave/static/css/main.1dd5f82b.css.map",
+    "main.3bd4ff81.js.map": "/SignWave/static/js/main.3bd4ff81.js.map",
+    "453.5cb363bb.chunk.js.map": "/SignWave/static/js/453.5cb363bb.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.1dd5f82b.css",
+    "static/js/main.3bd4ff81.js"
+  ]
+}
