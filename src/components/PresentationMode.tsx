@@ -9,15 +9,22 @@ import { useTheme } from '../context/ThemeContext';
 import FingerCursor from './FingerCursor';
 import CanvasPointer from './CanvasPointer';
 
+// Fix module declarations
 declare module '@splinetool/react-spline' {
-  const Spline: React.FC<{ scene: string; onLoad: (app: any) => void }>;
-  export default Spline;
+  interface SplineProps {
+    scene: string;
+    onLoad?: (app: Application) => void;
+  }
+  const Spline: React.FC<SplineProps>;
 }
 
 declare module '@splinetool/runtime' {
-  export interface Application {
-    getAllObjects: () => any[];
-    setZoom: (zoom: number) => void;
+  interface Application {
+    getAllObjects(): Array<{
+      name: string;
+      rotation: { x: number; y: number };
+    }>;
+    setZoom(zoom: number): void;
   }
 }
 
