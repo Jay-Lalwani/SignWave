@@ -4,6 +4,8 @@ import WorkflowEditor, { WorkflowData } from './components/WorkflowEditor';
 import PresentationMode from './components/PresentationMode';
 import GeneratePresentationModal from './components/GeneratePresentationModal';
 import { generatePresentationWorkflow } from './components/GeneratePresentationWorkflow';
+import { generateProjectImage } from './components/GenerateProjectImage';
+import openai from 'openai';
 
 type Mode = 'edit' | 'present';
 
@@ -36,7 +38,6 @@ function App() {
     }
   });
 
-  // Save workflow changes to localStorage.
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(workflow));
@@ -49,24 +50,32 @@ function App() {
     setWorkflow(newWorkflow);
   }, []);
 
-  // State to control the generate presentation modal.
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  // Function to update image nodes by generating a project image using the node's label as prompt.
+  async function updateImageNodes(currentWorkflow: WorkflowData, client: any): Promise<WorkflowData> {
+    const updatedNodes = await Promise.all(
+      currentWorkflow.nodes.map(async (node) => {
+        if (node.type === "imageNode" && node.data.label) {
+          try {
+            const imageUrl = await generateProjectImage(node.data.content, client);
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                url: imageUrl,
+              },
+            };
+          } catch (error) {
+            console.error(`Error generating image for node ${node.id}:`, error);
+            return node;
+          }
+        }
+        return node;
+      })
+    );
+    return { ...currentWorkflow, nodes: updatedNodes };
+  }
 
-  // Function to generate the presentation workflow from the user's prompt.
-  const handleGeneratePresentation = async (prompt: string) => {
-    try {
-      const generatedWorkflow = await generatePresentationWorkflow(prompt);
-      if (generatedWorkflow && Array.isArray(generatedWorkflow.nodes) && Array.isArray(generatedWorkflow.edges)) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedWorkflow));
-        setWorkflow(generatedWorkflow);
-      } else {
-        console.error("Generated workflow does not match expected format.");
-      }
-    } catch (error) {
-      console.error("Error generating presentation:", error);
-    }
-    setShowGenerateModal(false);
-  };
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
 
   return (
     <div className="App">
@@ -89,7 +98,29 @@ function App() {
       </main>
       {showGenerateModal && (
         <GeneratePresentationModal
-          onGenerate={handleGeneratePresentation}
+          onGenerate={async (prompt) => {
+            const client = new openai.OpenAI({
+              baseURL: "https://api.ai.it.cornell.edu",
+              apiKey: "sk-ZmTOaxcK9_My_f-kiuT5sQ",
+              dangerouslyAllowBrowser: true,
+            });
+            try {
+              const generatedWorkflow = await generatePresentationWorkflow(prompt, client);
+              if (generatedWorkflow && Array.isArray(generatedWorkflow.nodes) && Array.isArray(generatedWorkflow.edges)) {
+                const modalElement = document.querySelector('textarea')?.closest('div')?.querySelector('p');
+                if (modalElement) modalElement.textContent = 'Generating Images...';
+                await new Promise(resolve => setTimeout(resolve, 100)); // Let the UI update
+                const updatedWorkflow = await updateImageNodes(generatedWorkflow, client);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedWorkflow));
+                setWorkflow(updatedWorkflow);
+              } else {
+                console.error("Generated workflow does not match expected format.");
+              }
+            } catch (error) {
+              console.error("Error generating presentation:", error);
+            }
+            setShowGenerateModal(false);
+          }}
           onClose={() => setShowGenerateModal(false)}
         />
       )}
