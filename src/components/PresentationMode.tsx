@@ -3,6 +3,9 @@ import { Node, Edge } from 'reactflow';
 import GestureRecognizer, { GestureResult } from './GestureRecognizer';
 import Spline from '@splinetool/react-spline';
 import { Application } from '@splinetool/runtime';
+import { VoiceControlButton } from './VoiceControlButton';
+import { useVoiceNavigation } from '../hooks/useVoiceNavigation';
+import { useTheme } from '../context/ThemeContext';
 import FingerCursor from './FingerCursor';
 import CanvasPointer from './CanvasPointer';
 
@@ -18,6 +21,11 @@ type GestureThresholds = {
 };
 
 const THRESHOLDS_STORAGE_KEY = 'gesture_calibration_thresholds';
+
+interface Slide {
+  title: string;
+  // add other slide properties as needed
+}
 
 const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [currentNodeId, setCurrentNodeId] = useState<string>('1');
@@ -63,6 +71,32 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
 
   // Derive pointer mode from the current node; default to "laser"
   // Add this near other derived values
+  const { fontFamily, setFontFamily } = useTheme();
+  const [slides, setSlides] = useState<Slide[]>([]);
+
+  const {
+    isListening,
+    startListening,
+    stopListening,
+    isSupported,
+    error 
+  } = useVoiceNavigation({
+    nodes: workflow.nodes,
+    currentNodeId,
+    setCurrentNodeId,
+    setFontFamily
+  });
+
+  // Log state changes
+  useEffect(() => {
+    console.log('Current node ID changed:', currentNodeId);
+  }, [currentNodeId]);
+
+  useEffect(() => {
+    console.log('Font family changed:', fontFamily);
+  }, [fontFamily]);
+
+  // Derive pointer mode from the current node; default to "laser"
   const pointerMode = currentNode?.data?.pointerMode || "laser";
 
   // Get the current scrub amount or use default
@@ -116,7 +150,6 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     if (zoomAnimationRef.current) {
       cancelAnimationFrame(zoomAnimationRef.current);
     }
-
     const {min, max} = getZoomLimits();
 
     const animate = () => {
@@ -176,6 +209,9 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
 
     // Toggle pointer mode based on configurable gestures
     // Add pointer controls at the start of the function
+
+  const handleGesture = useCallback((result: GestureResult) => {
+    // Toggle pointer mode based on configurable gestures
     if (currentNode?.data?.pointerStartGesture && result.gesture === currentNode.data.pointerStartGesture) {
       setCursorFollow(true);
       return;
@@ -190,7 +226,6 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       e.data?.gesture === result.gesture
     );
     
-    // Handle video control gestures
     if (currentNode?.data?.type === 'video' && videoRef.current) {
       if (result.gesture === currentNode.data.playPauseGesture) {
         const now = Date.now();
@@ -316,160 +351,200 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
 
   const outgoingEdges = workflow.edges.filter(e => e.source === currentNodeId);
 
+  const handleNextSlide = () => {
+    // Implement next slide logic
+  };
+
+  const handlePreviousSlide = () => {
+    // Implement previous slide logic
+  };
+
+  const handleNavigateToTitle = (title: string) => {
+    // Implement navigate to title logic
+  };
+
+  // Start listening automatically when component mounts
+  useEffect(() => {
+    if (isSupported && !isListening) {
+      startListening();
+    }
+    
+    // Cleanup: stop listening when component unmounts
+    return () => {
+      if (isListening) {
+        stopListening();
+      }
+    };
+  }, [isSupported, isListening, startListening, stopListening]);
+
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-      {!isCalibrating && (
-        <div style={{ 
-          position: 'absolute', 
-          top: 0, 
-          right: 0, 
-          width: '200px', 
-          height: '150px', 
-          zIndex: 10,
-          background: '#f8f8f8',
-          borderRadius: '0 0 0 8px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-        }}>
-          <GestureRecognizer 
-            onGestureDetected={handleGesture}
-            showWebcam={showWebcam}
-            startCalibration={false}
-            onThresholdsUpdate={handleThresholdsUpdate}
-          />
-          <div style={{ 
-            position: 'absolute', 
-            bottom: -40, 
-            left: 0, 
-            right: 0, 
-            display: 'flex', 
-            justifyContent: 'center', 
-            gap: '10px' 
-          }}>
-            <button
-              onClick={() => setIsCalibrating(true)}
-              style={{
-                padding: '8px 16px',
-                background: '#4CAF50',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
-            >
-              Recalibrate
-            </button>
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              style={{
-                padding: '8px 16px',
-                background: '#2196F3',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
-            >
-              Settings
-            </button>
-          </div>
-        </div>
-      )}
-
-      {isCalibrating && (
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 100 }}>
-          <GestureRecognizer 
-            onGestureDetected={handleGesture}
-            startCalibration={true}
-            onCalibrationComplete={handleCalibrationComplete}
-            onThresholdsUpdate={handleThresholdsUpdate}
-          />
-        </div>
-      )}
-
-      {showSettings && !isCalibrating && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          background: 'white',
-          padding: '20px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          zIndex: 100,
-          minWidth: '300px'
-        }}>
-          <h3 style={{ marginTop: 0 }}>Settings</h3>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={showGestures}
-                onChange={(e) => setShowGestures(e.target.checked)}
-                style={{ marginRight: '10px' }}
-              />
-              Show Available Gestures
-            </label>
-          </div>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={showWebcam}
-                onChange={(e) => setShowWebcam(e.target.checked)}
-                style={{ marginRight: '10px' }}
-              />
-              Show Webcam Preview
-            </label>
-          </div>
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>Gesture Thresholds:</div>
+    <div 
+      className="presentation-mode"
+      style={{ 
+        fontFamily: fontFamily,
+        height: '100vh',
+        width: '100vw',
+        position: 'relative'
+      }}
+    >
+      <div 
+        className="presentation-content"
+        style={{ fontFamily: fontFamily }}
+      >
+        <div className="controls">
+          {!isCalibrating && (
             <div style={{ 
-              maxHeight: '150px', 
-              overflowY: 'auto',
-              background: '#f5f5f5',
-              borderRadius: '4px',
-              padding: '10px'
+              position: 'absolute', 
+              top: 0, 
+              right: 0, 
+              width: '200px', 
+              height: '150px', 
+              zIndex: 10,
+              background: '#f8f8f8',
+              borderRadius: '0 0 0 8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
             }}>
-              {Object.entries(thresholds).map(([gesture, threshold]) => (
-                <div key={gesture} style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '5px 0'
-                }}>
-                  <span>{gesture.replace('_', ' ')}</span>
-                  <span style={{ 
-                    color: '#666',
-                    background: '#fff',
-                    padding: '2px 8px',
+              <GestureRecognizer 
+                onGestureDetected={handleGesture}
+                showWebcam={showWebcam}
+                startCalibration={false}
+                onThresholdsUpdate={handleThresholdsUpdate}
+              />
+              <div style={{ 
+                position: 'absolute', 
+                bottom: -40, 
+                left: 0, 
+                right: 0, 
+                display: 'flex', 
+                justifyContent: 'center', 
+                gap: '10px' 
+              }}>
+                <button
+                  onClick={() => setIsCalibrating(true)}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#4CAF50',
+                    color: 'white',
+                    border: 'none',
                     borderRadius: '4px',
-                    fontSize: '0.9em'
-                  }}>
-                    {(threshold * 100).toFixed(1)}%
-                  </span>
-                </div>
-              ))}
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  Recalibrate
+                </button>
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#2196F3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  Settings
+                </button>
+              </div>
             </div>
-          </div>
-          <button
-            onClick={() => setShowSettings(false)}
-            style={{
-              padding: '8px 16px',
-              background: '#ff0072',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              width: '100%'
-            }}
-          >
-            Close
-          </button>
+          )}
+
+          {isCalibrating && (
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 100 }}>
+              <GestureRecognizer 
+                onGestureDetected={handleGesture}
+                startCalibration={true}
+                onCalibrationComplete={handleCalibrationComplete}
+                onThresholdsUpdate={handleThresholdsUpdate}
+              />
+            </div>
+          )}
+
+          {showSettings && !isCalibrating && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              background: 'white',
+              padding: '20px',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              zIndex: 100,
+              minWidth: '300px'
+            }}>
+              <h3 style={{ marginTop: 0 }}>Settings</h3>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={showGestures}
+                    onChange={(e) => setShowGestures(e.target.checked)}
+                    style={{ marginRight: '10px' }}
+                  />
+                  Show Available Gestures
+                </label>
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={showWebcam}
+                    onChange={(e) => setShowWebcam(e.target.checked)}
+                    style={{ marginRight: '10px' }}
+                  />
+                  Show Webcam Preview
+                </label>
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>Gesture Thresholds:</div>
+                <div style={{ 
+                  maxHeight: '150px', 
+                  overflowY: 'auto',
+                  background: '#f5f5f5',
+                  borderRadius: '4px',
+                  padding: '10px'
+                }}>
+                  {Object.entries(thresholds).map(([gesture, threshold]) => (
+                    <div key={gesture} style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '5px 0'
+                    }}>
+                      <span>{gesture.replace('_', ' ')}</span>
+                      <span style={{ 
+                        color: '#666',
+                        background: '#fff',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.9em'
+                      }}>
+                        {(threshold * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSettings(false)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#ff0072',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          )}
         </div>
-      )}
 
       {!isCalibrating && (
         <div style={{ 
@@ -834,6 +909,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       )}
     </div>
   );
-};
+  </div>
+)};
 
-export default PresentationMode; 
+export default PresentationMode;

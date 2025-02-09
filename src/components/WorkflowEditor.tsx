@@ -40,6 +40,7 @@ export type SlideNodeData = {
   zoomPoint?: { x: number; y: number };
   zoomInGesture?: string;
   zoomOutGesture?: string;
+<<<<<<< HEAD
   // Spline specific properties
   splineScene?: string;
   splineLoaded?: boolean;
@@ -51,6 +52,8 @@ export type SlideNodeData = {
     left?: { x: number; y: number };
     right?: { x: number; y: number };
   };
+=======
+>>>>>>> origin/audio_cues
   // Zoom configuration
   minZoom?: number;
   maxZoom?: number;
@@ -548,12 +551,15 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
           scrubBackwardGesture: ''
         } : {}),
         ...(type === 'imageNode' ? { url: '' } : {}),
+<<<<<<< HEAD
         ...(type === 'complexObjectNode' ? { 
           rotationDegree: { 
             left: { x: 0, y: 0 }, 
             right: { x: 0, y: 0 } 
           } 
         } : {}),
+=======
+>>>>>>> origin/audio_cues
         ...(type === 'apiNode' ? { apiEndpoint: '', apiMethod: 'GET', apiPayload: '' } : {}),
         // Default pointer mode is "laser"
         pointerMode: "laser"
@@ -819,6 +825,7 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                 />
               )}
             </FormSection>
+<<<<<<< HEAD
           )}
 
           {nodeForm.type === 'complexobject' && (
@@ -1008,6 +1015,8 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
                 </div>
               </FormSection>
             </>
+=======
+>>>>>>> origin/audio_cues
           )}
 
           {nodeForm.type === 'video' && (
