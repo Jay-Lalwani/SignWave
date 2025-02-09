@@ -101,7 +101,7 @@ function App() {
           onGenerate={async (prompt) => {
             const client = new openai.OpenAI({
               baseURL: "https://api.ai.it.cornell.edu",
-              apiKey: "sk-ZmTOaxcK9_My_f-kiuT5sQ",
+              apiKey: process.env.REACT_APP_OPENAI_API_KEY,
               dangerouslyAllowBrowser: true,
             });
             try {
