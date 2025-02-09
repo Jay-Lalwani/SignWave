@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
+import Spline from "@splinetool/react-spline";
 import ReactFlow, {
   Node,
   Edge,
@@ -23,7 +24,7 @@ import 'reactflow/dist/style.css';
 export type SlideNodeData = {
   label: string;
   content: string;
-  type: 'text' | 'image' | 'video' | 'api';
+  type: 'text' | 'image' | 'video' | 'api' | 'complexobject';
   url?: string;
   videoUrl?: string;
   autoplay?: boolean;
@@ -39,6 +40,17 @@ export type SlideNodeData = {
   zoomPoint?: { x: number; y: number };
   zoomInGesture?: string;
   zoomOutGesture?: string;
+  // Spline specific properties
+  splineScene?: string;
+  splineLoaded?: boolean;
+  rotationGesture?: {
+    left?: string;
+    right?: string;
+  };
+  rotationDegree?: {
+    left?: { x: number; y: number };
+    right?: { x: number; y: number };
+  };
   // Zoom configuration
   minZoom?: number;
   maxZoom?: number;
@@ -115,6 +127,55 @@ const ImageNode = ({ data, selected }: NodeProps<SlideNodeData>) => {
       )}
       <div style={{ fontSize: '0.8em', color: '#4CAF50', marginTop: '5px' }}>
         Image Slide
+      </div>
+      <Handle 
+        type="source" 
+        position={Position.Right}
+        style={{ width: '12px', height: '12px', background: '#555' }} 
+      />
+    </div>
+  );
+};
+
+// ComplexObjectNode component
+const ComplexObjectNode = ({ data, selected }: NodeProps<SlideNodeData>) => {
+  return (
+    <div style={{ 
+      ...BaseNodeStyle,
+      borderColor: selected ? '#ff0072' : '#FF9800',
+      minHeight: '250px',
+    }}>
+      <Handle 
+        type="target" 
+        position={Position.Left}
+        style={{ width: '12px', height: '12px', background: '#555' }} 
+      />
+      <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>{data.label}</div>
+      {data.splineScene && (
+        <div style={{ 
+          width: '100%', 
+          height: '200px',
+          background: '#f0f0f0',
+          marginBottom: '8px',
+          borderRadius: '4px',
+          overflow: 'hidden',
+          position: 'relative'
+        }}> 
+          <Spline 
+            style={{
+              width: '100%',
+              height: '100%',
+              position: 'absolute',
+              top: 0,
+              left: 0
+            }}
+            scene={data.splineScene}
+            onLoad={() => console.log('Spline scene loaded')}
+          />
+        </div>
+      )}
+      <div style={{ fontSize: '0.8em', color: '#FF9800', marginTop: '5px' }}>
+        Complex Object
       </div>
       <Handle 
         type="source" 
@@ -265,6 +326,7 @@ const nodeTypes = {
   imageNode: ImageNode,
   videoNode: VideoNode,
   apiNode: APINode,
+  complexObjectNode: ComplexObjectNode,
 };
 
 // Define edge types outside component
@@ -278,14 +340,16 @@ const AVAILABLE_GESTURES = [
   'Open_Palm',
   'Closed_Fist',
   'Victory',
-  'Pointing_Up'
+  'Pointing_Up',
 ];
+
 
 const NODE_TYPES = [
   { id: 'textNode', label: 'Text Slide', color: '#777' },
   { id: 'imageNode', label: 'Image Slide', color: '#4CAF50' },
   { id: 'videoNode', label: 'Video Slide', color: '#9C27B0' },
   { id: 'apiNode', label: 'API Action', color: '#2196F3' },
+  { id: 'complexObjectNode', label: 'Complex Object', color: '#FF9800' },
 ];
 
 const initialNodes: Node[] = [
@@ -472,6 +536,7 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
         type: type === 'apiNode' ? 'api' : 
               type === 'imageNode' ? 'image' : 
               type === 'videoNode' ? 'video' : 
+              type === 'complexObjectNode' ? 'complexobject' :
               'text',
         // Initialize with empty values based on type
         ...(type === 'videoNode' ? { 
@@ -483,6 +548,12 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
           scrubBackwardGesture: ''
         } : {}),
         ...(type === 'imageNode' ? { url: '' } : {}),
+        ...(type === 'complexObjectNode' ? { 
+          rotationDegree: { 
+            left: { x: 0, y: 0 }, 
+            right: { x: 0, y: 0 } 
+          } 
+        } : {}),
         ...(type === 'apiNode' ? { apiEndpoint: '', apiMethod: 'GET', apiPayload: '' } : {}),
         // Default pointer mode is "laser"
         pointerMode: "laser"
@@ -515,6 +586,17 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
   // Memoize node and edge types
   const memoizedNodeTypes = useMemo(() => nodeTypes, []);
   const memoizedEdgeTypes = useMemo(() => edgeTypes, []);
+
+  // Check valid url for spline scene
+  const isValidUrl = (url: string | undefined): boolean => {
+    if (!url) return true; // Empty is considered valid
+    try {
+      new URL(url);
+      return url.includes('spline.design');
+    } catch {
+      return false;
+    }
+  };
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex' }} onClick={() => {
@@ -738,7 +820,194 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
               )}
             </FormSection>
           )}
+          {nodeForm.type === 'complexobject' && (
+            <>
+              <FormSection title="Complex Object Settings" defaultOpen={true}>
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px' }}>Spline Scene URL:</label>
+                  <input
+                    type="text"
+                    value={nodeForm.splineScene || ''}
+                    onChange={(e) => {
+                      try {
+                        const url = new URL(e.target.value);
+                        handleNodeFormChange({ splineScene: e.target.value });
+                      } catch (error) {
+                        console.error('Invalid URL:', error);
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      borderColor: isValidUrl(nodeForm.splineScene) ? '#ddd' : '#ff0072'
+                    }}
+                    placeholder="https://prod.spline.design/..."
+                  />
+                  {nodeForm.splineScene && isValidUrl(nodeForm.splineScene) && (
+                    <div style={{ 
+                      width: '100%',
+                      height: '400px',
+                      marginTop: '10px',
+                      borderRadius: '4px',
+                      overflow: 'hidden',
+                      background: '#f0f0f0'
+                    }}>
+                      <Spline 
+                        scene={nodeForm.splineScene}
+                        onLoad={() => handleNodeFormChange({ splineLoaded: true })}
+                      />
+                    </div>
+                  )}
+                </div>
+              </FormSection>
 
+              <FormSection title="Rotation Controls">
+                {/* Left Rotation */}
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Left Rotation:</label>
+                  <select
+                    value={nodeForm.rotationGesture?.left || ''}
+                    onChange={(e) => handleNodeFormChange({ 
+                      rotationGesture: { 
+                        ...nodeForm.rotationGesture,
+                        left: e.target.value 
+                      }
+                    })}
+                    style={{ 
+                      width: '100%', 
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    <option value="">Select a gesture...</option>
+                    {AVAILABLE_GESTURES.map(gesture => (
+                      <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="X rotation"
+                      value={nodeForm.rotationDegree?.left?.x || ''}
+                      onChange={(e) => handleNodeFormChange({ 
+                        rotationDegree: { 
+                          ...nodeForm.rotationDegree,
+                          left: { 
+                            x: Math.max(0, Number(e.target.value)),
+                            y: nodeForm.rotationDegree?.left?.y || 0 
+                          }
+                        } 
+                      })}
+                      style={{
+                        width: '50%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Y rotation"
+                      value={nodeForm.rotationDegree?.left?.y || ''}
+                      onChange={(e) => handleNodeFormChange({ 
+                        rotationDegree: { 
+                          ...nodeForm.rotationDegree,
+                          left: { 
+                            x: nodeForm.rotationDegree?.left?.x || 0,
+                            y: Math.max(0, Number(e.target.value))
+                          }
+                        } 
+                      })}
+                      style={{
+                        width: '50%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Right Rotation */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Right Rotation:</label>
+                  <select
+                    value={nodeForm.rotationGesture?.right || ''}
+                    onChange={(e) => handleNodeFormChange({ 
+                      rotationGesture: { 
+                        ...nodeForm.rotationGesture,
+                        right: e.target.value 
+                      }
+                    })}
+                    style={{ 
+                      width: '100%', 
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    <option value="">Select a gesture...</option>
+                    {AVAILABLE_GESTURES.map(gesture => (
+                      <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="X rotation"
+                      value={nodeForm.rotationDegree?.right?.x || ''}
+                      onChange={(e) => handleNodeFormChange({ 
+                        rotationDegree: { 
+                          ...nodeForm.rotationDegree,
+                          right: { 
+                            x: Math.max(0, Number(e.target.value)),
+                            y: nodeForm.rotationDegree?.right?.y || 0 
+                          }
+                        } 
+                      })}
+                      style={{
+                        width: '50%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Y rotation"
+                      value={nodeForm.rotationDegree?.right?.y || ''}
+                      onChange={(e) => handleNodeFormChange({ 
+                        rotationDegree: { 
+                          ...nodeForm.rotationDegree,
+                          right: { 
+                            x: nodeForm.rotationDegree?.right?.x || 0,
+                            y: Math.max(0, Number(e.target.value))
+                          }
+                        } 
+                      })}
+                      style={{
+                        width: '50%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                  </div>
+                </div>
+              </FormSection>
+            </>
+          )}
           {nodeForm.type === 'video' && (
             <>
               <FormSection title="Video Settings" defaultOpen={true}>
