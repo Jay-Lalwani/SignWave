@@ -28,9 +28,10 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomPoint, setZoomPoint] = useState<{ x: number; y: number } | null>(null);
   const zoomAnimationRef = useRef<number>();
-  const MIN_ZOOM = 1;
-  const MAX_ZOOM = 4;
-  const ZOOM_SPEED = 0.05;
+  const [cursorFollow, setCursorFollow] = useState(false);
+  const MIN_ZOOM = 1; //for complex object
+  const MAX_ZOOM = 4; //for complex object
+  const ZOOM_SPEED = 0.05; //for complex object
   const [thresholds, setThresholds] = useState<GestureThresholds>(() => {
     try {
       const saved = localStorage.getItem(THRESHOLDS_STORAGE_KEY);
@@ -53,19 +54,23 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [apiResponse, setApiResponse] = useState<any>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const SCRUB_AMOUNT = 5; // seconds to scrub forward/backward
   const PLAY_PAUSE_DELAY = 1000; // 1 second delay between play/pause gestures
   const lastPlayPauseTime = useRef<number>(0);
   const [splineApps, setSplineApps] = useState<{ [key: string]: Application }>({});
   const [currentZoom, setCurrentZoom] = useState(1.0);
-  const [cursorFollow, setCursorFollow] = useState(false);
   const lastGestureTime = useRef<number>(0);
   const GESTURE_COOLDOWN = 1000; // 1 second cooldown between transitions
   
   const currentNode = workflow.nodes.find(n => n.id === currentNodeId);
 
+  // Derive pointer mode from the current node; default to "laser"
   // Add this near other derived values
   const pointerMode = currentNode?.data?.pointerMode || "laser";
+
+  // Get the current scrub amount or use default
+  const getScrubAmount = useCallback(() => {
+    return currentNode?.data?.scrubAmount || 5;
+  }, [currentNode]);
 
   // Handle continuous zoom
   useEffect(() => {
@@ -76,10 +81,18 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     };
   }, []);
 
+  const getZoomLimits = useCallback(() => {
+    if (!currentNode?.data) return { min: 1, max: 4 };
+    return {
+      min: currentNode.data.minZoom || 1,
+      max: currentNode.data.maxZoom || 4
+    };
+  }, [currentNode]);
+
   const handleRotation = useCallback((direction: 'left' | 'right') => {
-    console.log('Rotation called with direction:', direction);
-    console.log('Current node:', currentNode);
-    console.log('Available splineApps:', splineApps);
+    // console.log('Rotation called with direction:', direction);
+    // console.log('Current node:', currentNode);
+    // console.log('Available splineApps:', splineApps);
     
     if (!currentNode?.data?.rotationDegree?.[direction] || !currentNode.data.splineScene) {
       console.log('Missing rotation data:', {
@@ -91,7 +104,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     
     const splineApp = splineApps[currentNode.data.splineScene];
     if (!splineApp) {
-      console.log('No splineApp found for scene:', currentNode.data.splineScene);
+      // console.log('No splineApp found for scene:', currentNode.data.splineScene);
       return;
     } 
     const allObjects = splineApp.getAllObjects();
@@ -101,12 +114,12 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
      
     if (obj) {
       const degrees = currentNode.data.rotationDegree[direction];
-      console.log('Found rotatable object:', obj);
-      console.log('Applying rotation:', {
-        direction,
-        degrees,
-        currentRotation: { x: obj.rotation.x, y: obj.rotation.y }
-      });
+      // console.log('Found rotatable object:', obj);
+      // console.log('Applying rotation:', {
+      //   direction,
+      //   degrees,
+      //   currentRotation: { x: obj.rotation.x, y: obj.rotation.y }
+      // });
       
       const xMultiplier = direction === 'left' ? -1 : 1;
       obj.rotation.x = obj.rotation.x + (degrees.x * Math.PI * xMultiplier) / 180;
@@ -121,15 +134,17 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       cancelAnimationFrame(zoomAnimationRef.current);
     }
 
+    const {min, max} = getZoomLimits();
+
     const animate = () => {
       setZoomLevel(current => {
         const newZoom = direction === 'in' 
-          ? Math.min(current + ZOOM_SPEED, MAX_ZOOM)
-          : Math.max(current - ZOOM_SPEED, MIN_ZOOM);
+          ? Math.min(current + 0.05, max)
+          : Math.max(current - 0.05, min);
         
-        if ((direction === 'in' && newZoom < MAX_ZOOM) || 
-            (direction === 'out' && newZoom > MIN_ZOOM)) {
-          zoomAnimationRef.current = requestAnimationFrame(animate);
+          if ((direction === 'in' && newZoom < MAX_ZOOM) || 
+          (direction === 'out' && newZoom > MIN_ZOOM)) {
+            zoomAnimationRef.current = requestAnimationFrame(animate);
         }
         
         return newZoom;
@@ -137,7 +152,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     };
 
     zoomAnimationRef.current = requestAnimationFrame(animate);
-  }, []);
+  }, [getZoomLimits]);
 
   const handleSplineZoom = useCallback((direction: 'in' | 'out') => {
     if (splineApps[currentNode?.data?.splineScene]) {
@@ -146,33 +161,31 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
         cancelAnimationFrame(zoomAnimationRef.current);
       }
 
-      const MIN_ZOOM = currentNode?.data?.minZoom || 0.1;
-      const MAX_ZOOM = currentNode?.data?.maxZoom || 4.0;
-      const ZOOM_SPEED = 0.09; // Faster zoom speed
+      //TODO: change this to use getZoomLimits
+      const {min, max} = getZoomLimits();
 
       const animate = () => {
         const zoomFactor = direction === 'in' ? (1 - ZOOM_SPEED) : (1 + ZOOM_SPEED);
         const newZoom = currentZoom * zoomFactor;
-          
+
         // Check zoom bounds
-        if (direction === 'out' && newZoom >= (currentNode?.data?.maxZoom || MAX_ZOOM)) {
+        if (direction === 'out' && newZoom >= max) {
           cancelAnimationFrame(zoomAnimationRef.current!);
-          return currentNode?.data?.maxZoom || MAX_ZOOM;
-        }
-        if (direction === 'in' && newZoom <= (currentNode?.data?.minZoom || MIN_ZOOM)) {
+          return max;
+        } else if (direction === 'in' && newZoom <= min) {
           cancelAnimationFrame(zoomAnimationRef.current!);
-          return currentNode?.data?.minZoom || MIN_ZOOM;
+          return min;
         }
 
-          splineApps[currentNode?.data?.splineScene].setZoom(newZoom);
+        splineApps[currentNode?.data?.splineScene].setZoom(newZoom);
         setCurrentZoom(newZoom);
 
-          zoomAnimationRef.current = requestAnimationFrame(animate);
+        zoomAnimationRef.current = requestAnimationFrame(animate);
       };
 
       zoomAnimationRef.current = requestAnimationFrame(animate);
     }
-  }, [splineApps, currentNode?.data?.splineScene, currentZoom, currentNode?.data?.minZoom, currentNode?.data?.maxZoom]);
+  }, [splineApps, currentNode?.data?.splineScene, currentZoom, getZoomLimits]);
 
   const handleGesture = useCallback((result: GestureResult) => {
     const now = Date.now();
@@ -180,6 +193,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       return; // Skip if we're still in cooldown
     }
 
+    // Toggle pointer mode based on configurable gestures
     // Add pointer controls at the start of the function
     if (currentNode?.data?.pointerStartGesture && result.gesture === currentNode.data.pointerStartGesture) {
       setCursorFollow(true);
@@ -209,14 +223,16 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
         }
         return;
       } else if (result.gesture === currentNode.data.scrubForwardGesture) {
+        const scrubAmount = getScrubAmount();
         videoRef.current.currentTime = Math.min(
-          videoRef.current.currentTime + SCRUB_AMOUNT,
+          videoRef.current.currentTime + scrubAmount,
           videoRef.current.duration
         );
         return;
       } else if (result.gesture === currentNode.data.scrubBackwardGesture) {
+        const scrubAmount = getScrubAmount();
         videoRef.current.currentTime = Math.max(
-          videoRef.current.currentTime - SCRUB_AMOUNT,
+          videoRef.current.currentTime - scrubAmount,
           0
         );
         return;
@@ -226,9 +242,11 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     // Handle zoom gestures
     if (currentNode?.data.zoomPoint && currentNode?.data?.type !== 'complexobject') {
       if (result.gesture === currentNode.data.zoomInGesture) {
+        setZoomPoint(currentNode.data.zoomPoint);
         handleZoom('in');
         return;
       } else if (result.gesture === currentNode.data.zoomOutGesture) {
+        setZoomPoint(currentNode.data.zoomPoint);
         handleZoom('out');
         return;
       }
@@ -236,9 +254,11 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     //Handle zoom gestures for the complex object zoom in and zoom out gesture
     if (currentNode?.data?.type === 'complexobject') {
       if (result.gesture === currentNode.data.zoomInGesture) {
+        setZoomPoint(currentNode.data.zoomPoint);
         handleSplineZoom('in');
         return;
       } else if (result.gesture === currentNode.data.zoomOutGesture) {
+        setZoomPoint(currentNode.data.zoomPoint);
         handleSplineZoom('out');
         return;
       }
@@ -261,7 +281,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       setZoomPoint(null);
       setCurrentNodeId(possibleTransitions[0].target);
     }
-  }, [currentNodeId, workflow.edges, currentNode, handleZoom, handleRotation, handleSplineZoom]);
+  }, [currentNodeId, workflow.edges, currentNode, handleZoom, handleRotation, handleSplineZoom, getScrubAmount]);
 
   const handleCalibrationComplete = useCallback(() => {
     setIsCalibrating(false);
@@ -481,6 +501,17 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
           padding: '20px',
           overflow: 'hidden'
         }}>
+          <div style={{ 
+            fontSize: '2em',
+            marginBottom: '20px',
+            transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+            transformOrigin: zoomPoint 
+              ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+              : 'center center',
+            transition: 'transform 0.1s ease-out'
+          }}>
+            {currentNode?.data?.label || 'No content'}
+          </div>
           {currentNode?.data?.type === 'complexobject' ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
               <div style={{
@@ -601,12 +632,51 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                 </div>
               )}
             </>
-          ) : (
+          ) : 
+          currentNode?.data?.type === 'complexobject' ? (
+            <>
+              {currentNode.data.rotationGesture?.left && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
+                    {currentNode.data.rotationGesture.left}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Rotate Left</span>
+                </div>
+              )}
+              {currentNode.data.rotationGesture?.right && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
+                    {currentNode.data.rotationGesture.right}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Rotate Right</span>
+                </div>
+              )}
+            </>
+          ):(
             <div style={{ 
               fontSize: '1.2em',
               marginBottom: '20px',
               whiteSpace: 'pre-wrap',
               maxWidth: '800px',
+
               textAlign: 'left'
             }}>
               {currentNode?.data?.content}
@@ -624,41 +694,6 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
               <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#666' }}>
                 Available Gestures:
               </div>
-              {currentNode?.data?.pointerStartGesture && (
-                <div style={{ 
-                  margin: '8px 0',
-                  padding: '8px',
-                  background: 'white',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
-                    {currentNode.data.pointerStartGesture}
-                  </span>
-                  <span style={{ color: '#666' }}>→</span>
-                  <span>Start {pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
-                </div>
-              )}
-              {currentNode?.data?.pointerStopGesture && (
-                <div style={{ 
-                  margin: '8px 0',
-                  padding: '8px',
-                  background: 'white',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
-                    {currentNode.data.pointerStopGesture}
-                  </span>
-                  <span style={{ color: '#666' }}>→</span>
-                  <span>Stop {pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
-                </div>
-              )}
-              
               {outgoingEdges.map(edge => (
                 <div key={edge.id} style={{ 
                   margin: '8px 0',
@@ -676,47 +711,8 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   <span>{workflow.nodes.find(n => n.id === edge.target)?.data.label}</span>
                 </div>
               ))}
-              
-              {currentNode?.data?.type === 'complexobject' && (
-                <>
-                  {currentNode.data.rotationGesture?.left && (
-                    <div style={{ 
-                      margin: '8px 0',
-                      padding: '8px',
-                      background: 'white',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px'
-                    }}>
-                      <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
-                        {currentNode.data.rotationGesture.left}
-                      </span>
-                      <span style={{ color: '#666' }}>→</span>
-                      <span>Rotate Left</span>
-                    </div>
-                  )}
-                  {currentNode.data.rotationGesture?.right && (
-                    <div style={{ 
-                      margin: '8px 0',
-                      padding: '8px',
-                      background: 'white',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px'
-                    }}>
-                      <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
-                        {currentNode.data.rotationGesture.right}
-                      </span>
-                      <span style={{ color: '#666' }}>→</span>
-                      <span>Rotate Right</span>
-                    </div>
-                  )}
-                </>
-              )}
-              
-              {currentNode?.data?.zoomInGesture && (
+
+              {currentNode?.data?.pointerStartGesture && (
                 <div style={{ 
                   margin: '8px 0',
                   padding: '8px',
@@ -727,6 +723,41 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   gap: '10px'
                 }}>
                   <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                    {currentNode.data.pointerStartGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Start {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                </div>
+              )}
+              {currentNode?.data?.pointerStopGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                    {currentNode.data.pointerStopGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Stop {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                </div>
+              )}
+
+              {currentNode?.data?.zoomInGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
                     {currentNode.data.zoomInGesture}
                   </span>
                   <span style={{ color: '#666' }}>→</span>
@@ -743,18 +774,73 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   alignItems: 'center',
                   gap: '10px'
                 }}>
-                  <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
                     {currentNode.data.zoomOutGesture}
                   </span>
                   <span style={{ color: '#666' }}>→</span>
                   <span>Zoom Out</span>
                 </div>
               )}
+
+              {currentNode?.data?.type === 'video' && (
+                <>
+                  {currentNode.data.playPauseGesture && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                        {currentNode.data.playPauseGesture}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Play/Pause Video</span>
+                    </div>
+                  )}
+                  {currentNode.data.scrubForwardGesture && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                        {currentNode.data.scrubForwardGesture}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Fast Forward</span>
+                    </div>
+                  )}
+                  {currentNode.data.scrubBackwardGesture && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                        {currentNode.data.scrubBackwardGesture}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Rewind</span>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
       )}
-
       {/* Add pointer overlay at the end, before the closing div */}
       {cursorFollow && (pointerMode === "laser" ? 
         <FingerCursor 

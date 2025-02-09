@@ -537,9 +537,8 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
               type === 'imageNode' ? 'image' : 
               type === 'videoNode' ? 'video' : 
               type === 'complexObjectNode' ? 'complexobject' :
-              'image',
+              'text',
         // Initialize with empty values based on type
-
         ...(type === 'videoNode' ? { 
           videoUrl: '', 
           autoplay: false, 
@@ -1260,7 +1259,7 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
             </div>
 
             <div style={{ marginTop: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>Zoom Out Gesture:</label>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Zoom In Gesture:</label>
               <select
                 value={nodeForm.zoomInGesture || ''}
                 onChange={(e) => handleNodeFormChange({ zoomInGesture: e.target.value })}
@@ -1279,7 +1278,7 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
             </div>
 
             <div style={{ marginTop: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>Zoom In Gesture:</label>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Zoom Out Gesture:</label>
               <select
                 value={nodeForm.zoomOutGesture || ''}
                 onChange={(e) => handleNodeFormChange({ zoomOutGesture: e.target.value })}
