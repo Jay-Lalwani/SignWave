@@ -142,8 +142,8 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
           ? Math.min(current + 0.05, max)
           : Math.max(current - 0.05, min);
         
-          if ((direction === 'in' && newZoom < MAX_ZOOM) || 
-          (direction === 'out' && newZoom > MIN_ZOOM)) {
+          if ((direction === 'in' && newZoom < max) || 
+          (direction === 'out' && newZoom > min)) {
             zoomAnimationRef.current = requestAnimationFrame(animate);
         }
         
