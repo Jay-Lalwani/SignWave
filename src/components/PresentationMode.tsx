@@ -29,9 +29,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [zoomPoint, setZoomPoint] = useState<{ x: number; y: number } | null>(null);
   const zoomAnimationRef = useRef<number>();
   const [cursorFollow, setCursorFollow] = useState(false);
-  const MIN_ZOOM = 1; //for complex object
-  const MAX_ZOOM = 4; //for complex object
-  const ZOOM_SPEED = 0.05; //for complex object
+  const ZOOM_SPEED = 0.2; //for complex object
   const [thresholds, setThresholds] = useState<GestureThresholds>(() => {
     try {
       const saved = localStorage.getItem(THRESHOLDS_STORAGE_KEY);
@@ -90,21 +88,13 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   }, [currentNode]);
 
   const handleRotation = useCallback((direction: 'left' | 'right') => {
-    // console.log('Rotation called with direction:', direction);
-    // console.log('Current node:', currentNode);
-    // console.log('Available splineApps:', splineApps);
     
     if (!currentNode?.data?.rotationDegree?.[direction] || !currentNode.data.splineScene) {
-      console.log('Missing rotation data:', {
-        rotationDegree: currentNode?.data?.rotationDegree,
-        splineScene: currentNode?.data?.splineScene
-      });
       return;
     }
     
     const splineApp = splineApps[currentNode.data.splineScene];
     if (!splineApp) {
-      // console.log('No splineApp found for scene:', currentNode.data.splineScene);
       return;
     } 
     const allObjects = splineApp.getAllObjects();
@@ -113,14 +103,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     const obj = allObjects.find(obj => obj.name === 'chips' || obj.name === 'Scene'|| obj.name === 'Text'  || obj.name === 'group' || obj.name === 'swing Scene');
      
     if (obj) {
-      const degrees = currentNode.data.rotationDegree[direction];
-      // console.log('Found rotatable object:', obj);
-      // console.log('Applying rotation:', {
-      //   direction,
-      //   degrees,
-      //   currentRotation: { x: obj.rotation.x, y: obj.rotation.y }
-      // });
-      
+      const degrees = currentNode.data.rotationDegree[direction];      
       const xMultiplier = direction === 'left' ? -1 : 1;
       obj.rotation.x = obj.rotation.x + (degrees.x * Math.PI * xMultiplier) / 180;
       obj.rotation.y = obj.rotation.y + (degrees.y * Math.PI * xMultiplier) / 180;
@@ -160,8 +143,6 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       if (zoomAnimationRef.current) {
         cancelAnimationFrame(zoomAnimationRef.current);
       }
-
-      //TODO: change this to use getZoomLimits
       const {min, max} = getZoomLimits();
 
       const animate = () => {
@@ -531,7 +512,6 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   <Spline 
                     scene={currentNode.data.splineScene}
                     onLoad={(splineApp) => {
-                      console.log('Spline scene loaded:', currentNode.data.splineScene);
                       setSplineApps(prev => ({
                         ...prev,
                         [currentNode.data.splineScene]: splineApp
