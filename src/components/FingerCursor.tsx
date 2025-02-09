@@ -8,9 +8,10 @@ const lerp = (start: number, end: number, t: number): number => start + (end - s
 type Props = {
   color?: string;
   size?: number;
+  onPositionUpdate?: (position: { x: number; y: number }) => void;
 };
 
-const FingerCursor: React.FC<Props> = ({ color = '#ff0000', size = 10 }) => {
+const FingerCursor: React.FC<Props> = ({ color = '#ff0000', size = 10, onPositionUpdate }) => {
   const webcamRef = useRef<Webcam>(null);
   const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
   // The cursor's screen coordinates; initialized off-screen.
@@ -63,10 +64,14 @@ const FingerCursor: React.FC<Props> = ({ color = '#ff0000', size = 10 }) => {
           // Map normalized coordinates to screen coordinates (flip x).
           const screenX = (1 - indexTip.x) * window.innerWidth;
           const screenY = indexTip.y * window.innerHeight;
-          setCursorPosition(prev => ({
-            x: lerp(prev.x, screenX, 0.3),
-            y: lerp(prev.y, screenY, 0.3)
-          }));
+
+          const newPosition = {
+            x: lerp(cursorPosition.x, screenX, 0.3),
+            y: lerp(cursorPosition.y, screenY, 0.3)
+          };
+
+          setCursorPosition(newPosition);
+          onPositionUpdate?.(newPosition);
         }
       }
       animationFrameId = requestAnimationFrame(detectHand);
@@ -74,7 +79,7 @@ const FingerCursor: React.FC<Props> = ({ color = '#ff0000', size = 10 }) => {
 
     detectHand();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [handLandmarker]);
+  }, [handLandmarker, cursorPosition, onPositionUpdate]);
 
   return (
     <>
