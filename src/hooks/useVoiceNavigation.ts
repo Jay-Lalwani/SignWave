@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { Node } from 'reactflow';
+import { SUPPORTED_FONTS, FontFamily } from '../constants/fonts';
 
 interface SpeechRecognitionEvent {
   results: SpeechRecognitionResultList;
@@ -23,20 +24,30 @@ interface SpeechRecognitionAlternative {
   transcript: string;
 }
 
-interface SpeechRecognition {
+interface SpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
+  lang: string;
+  onstart: (event: Event) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onend: (event: Event) => void;
+  onaudiostart: (event: Event) => void;
+  onaudioend: (event: Event) => void;
+  onsoundstart: (event: Event) => void;
+  onsoundend: (event: Event) => void;
+  onspeechstart: (event: Event) => void;
+  onspeechend: (event: Event) => void;
   start(): void;
   stop(): void;
-  onresult: (event: SpeechRecognitionEvent) => void;
-  onerror: (event: SpeechRecognitionErrorEvent) => void;
 }
 
-type UseVoiceNavigationProps = {
+interface UseVoiceNavigationProps {
   nodes: Node[];
   currentNodeId: string;
   setCurrentNodeId: (id: string) => void;
-};
+  setFontFamily: (font: FontFamily) => void;
+}
 
 type UseVoiceNavigationReturn = {
   isListening: boolean;
@@ -46,6 +57,7 @@ type UseVoiceNavigationReturn = {
   error: string | null;
   handleNextSlide: () => void;
   handlePreviousSlide: () => void;
+  handleFirstSlide: () => void;
   handleNavigateToTitle: (title: string) => void;
   slides: { title: string; id: string }[];
 };
@@ -54,11 +66,19 @@ type UseVoiceNavigationReturn = {
 declare global {
   interface Window {
     SpeechRecognition: new () => SpeechRecognition;
-    webkitSpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: {
+      new (): SpeechRecognition;
+    };
   }
 }
 
-export const useVoiceNavigation = ({ nodes, currentNodeId, setCurrentNodeId }: UseVoiceNavigationProps): UseVoiceNavigationReturn => {
+export const useVoiceNavigation = ({ 
+  nodes, 
+  currentNodeId, 
+  setCurrentNodeId,
+  setFontFamily
+}: UseVoiceNavigationProps): UseVoiceNavigationReturn => {
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -66,271 +86,62 @@ export const useVoiceNavigation = ({ nodes, currentNodeId, setCurrentNodeId }: U
   const currentIndex = useRef(nodes.findIndex(node => node.id === currentNodeId));
   const currentNodeRef = useRef(currentNodeId);
   const lastCommandRef = useRef<{ command: string; timestamp: number } | null>(null);
+  const errorTimeoutRef = useRef<NodeJS.Timeout>();
 
-  useEffect(() => {
-    currentIndex.current = nodes.findIndex(node => node.id === currentNodeId);
-    currentNodeRef.current = currentNodeId;
-    console.log('Current index updated to:', currentIndex.current, 'for node:', currentNodeId);
-  }, [currentNodeId, nodes]);
-
-  const isSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+  // Add check for browser support
+  const isSupported = 'webkitSpeechRecognition' in window;
 
   const handleNextSlide = useCallback(() => {
-    console.log('Next Slide - Current Index:', currentIndex.current, 'Current ID:', currentNodeRef.current);
+    const currentIndex = nodes.findIndex(node => node.id === currentNodeId);
+    console.log('Current index:', currentIndex, 'Total nodes:', nodes.length);
     
-    // Sort nodes by their vertical position, then horizontal position
-    const sortedNodes = [...nodes].sort((a, b) => {
-      const aPosition = a.position || { x: 0, y: 0 };
-      const bPosition = b.position || { x: 0, y: 0 };
-      
-      // First sort by y position (with some tolerance for same-row nodes)
-      const yDiff = aPosition.y - bPosition.y;
-      if (Math.abs(yDiff) > 50) { // 50px tolerance for same row
-        return yDiff;
-      }
-      // If in same row, sort by x position
-      return aPosition.x - bPosition.x;
-    });
-
-    const currentSortedIndex = sortedNodes.findIndex(node => node.id === currentNodeRef.current);
-    console.log('Current sorted index:', currentSortedIndex, 'Total nodes:', sortedNodes.length);
-    
-    const nextNode = sortedNodes[currentSortedIndex + 1];
-    if (nextNode) {
-      console.log('Moving to next node:', nextNode.id, 'from current node:', currentNodeRef.current);
-      if (nextNode.id !== currentNodeRef.current) { // Only update if it's actually a different node
-        currentNodeRef.current = nextNode.id;
-        setCurrentNodeId(nextNode.id);
-      } else {
-        console.log('Next node is the same as current node, skipping update');
-        setError('No next slide available');
-        setTimeout(() => setError(null), 2000);
-      }
+    if (currentIndex < nodes.length - 1) {
+      const nextId = nodes[currentIndex + 1].id;
+      console.log('Moving to next node:', nextId, 'from current:', currentNodeId);
+      setCurrentNodeId(nextId);
+      // Force update the current node reference
+      currentNodeRef.current = nextId;
     } else {
-      console.log('No next node available');
-      setError('Already at the last slide');
-      setTimeout(() => setError(null), 2000);
+      console.log('Already at last slide');
     }
-  }, [nodes, setCurrentNodeId]);
+  }, [nodes, currentNodeId, setCurrentNodeId]);
 
   const handlePreviousSlide = useCallback(() => {
-    console.log('Previous Slide - Current Index:', currentIndex.current, 'Current ID:', currentNodeRef.current);
-    
-    // Sort nodes by their vertical position, then horizontal position
-    const sortedNodes = [...nodes].sort((a, b) => {
-      const aPosition = a.position || { x: 0, y: 0 };
-      const bPosition = b.position || { x: 0, y: 0 };
-      
-      // First sort by y position (with some tolerance for same-row nodes)
-      const yDiff = aPosition.y - bPosition.y;
-      if (Math.abs(yDiff) > 50) { // 50px tolerance for same row
-        return yDiff;
-      }
-      // If in same row, sort by x position
-      return aPosition.x - bPosition.x;
-    });
-
-    const currentSortedIndex = sortedNodes.findIndex(node => node.id === currentNodeRef.current);
-    console.log('Current sorted index:', currentSortedIndex, 'Total nodes:', sortedNodes.length);
-    
-    const previousNode = sortedNodes[currentSortedIndex - 1];
-    if (previousNode) {
-      console.log('Moving to previous node:', previousNode.id, 'from current node:', currentNodeRef.current);
-      if (previousNode.id !== currentNodeRef.current) {
-        currentNodeRef.current = previousNode.id;
-        setCurrentNodeId(previousNode.id);
-      } else {
-        console.log('Previous node is the same as current node, skipping update');
-        setError('No previous slide available');
-        setTimeout(() => setError(null), 2000);
-      }
-    } else {
-      console.log('No previous node available');
-      setError('Already at the first slide');
-      setTimeout(() => setError(null), 2000);
+    const currentIndex = nodes.findIndex(node => node.id === currentNodeId);
+    if (currentIndex > 0) {
+      const prevId = nodes[currentIndex - 1].id;
+      console.log('Moving to previous node:', prevId);
+      setCurrentNodeId(prevId);
     }
-  }, [nodes, setCurrentNodeId]);
+  }, [nodes, currentNodeId, setCurrentNodeId]);
 
   const handleNavigateToTitle = useCallback((title: string) => {
-    const targetNode = nodes.find(node => node.data?.label === title);
-    if (targetNode) {
-      setCurrentNodeId(targetNode.id);
+    console.log('Looking for node with title:', title);
+    console.log('Available nodes:', nodes);
+    const node = nodes.find(node => 
+      node.data?.label?.toLowerCase() === title.toLowerCase()
+    );
+    if (node) {
+      console.log('Found node, setting ID to:', node.id);
+      setCurrentNodeId(node.id);
+    } else {
+      console.log('No node found with title:', title);
     }
   }, [nodes, setCurrentNodeId]);
 
-  const slides = nodes.map(node => ({
-    title: node.data?.label || '',
-    id: node.id
-  }));
-
-  useEffect(() => {
-    if (isSupported) {
-      const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognitionInstance = new SpeechRecognitionAPI();
-      recognitionInstance.continuous = true;
-      recognitionInstance.interimResults = false;
-
-      recognitionInstance.onstart = () => {
-        console.log('Recognition started');
-      };
-
-      const isFirstSlideCommand = (cmd: string) => {
-        const firstSlidePatterns = [
-          'first slide',
-          'beginning',
-          'go to the beginning',
-          'return to the start',
-          'go to first slide',
-          'return to first slide',
-          'turn to the first slide',
-          'return to the first slide',
-          'go back to first slide',
-          'go back to the first slide'
-        ];
-        
-        // Check for exact matches
-        if (firstSlidePatterns.includes(cmd)) {
-          return true;
-        }
-        
-        // Check for partial matches that contain key phrases
-        return firstSlidePatterns.some(pattern => 
-          cmd.includes(pattern) || 
-          cmd.includes('first slide') || 
-          cmd.includes('beginning') || 
-          cmd.includes('start')
-        );
-      };
-
-      recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
-        const results = event.results;
-        const lastResult = results[results.length - 1];
-        const command = lastResult[0].transcript.toLowerCase().trim();
-        
-        const now = Date.now();
-        if (lastCommandRef.current) {
-          // Check for exact match or similar commands
-          if ((lastCommandRef.current.command === command || 
-              (isFirstSlideCommand(lastCommandRef.current.command) && isFirstSlideCommand(command))) && 
-              now - lastCommandRef.current.timestamp < 2000) {
-            console.log('Command debounced:', command);
-            return;
-          }
-        }
-        
-        lastCommandRef.current = { command, timestamp: now };
-        console.log('Processing command:', command);
-
-        if (titleNavigationTimeout.current) {
-          clearTimeout(titleNavigationTimeout.current);
-        }
-        
-        if (isFirstSlideCommand(command)) {
-          console.log('Executing go to first slide command');
-          navigateToFirstSlide();
-        } else if (command === 'previous' || command === 'go back' || command === 'back') {
-          console.log('Executing previous slide command');
-          handlePreviousSlide();
-        } else if (command === 'next' || command === 'next slide' || command === 'go to next' || command === 'go to next slide') {
-          console.log('Executing next slide command');
-          handleNextSlide();
-        } else if (command.startsWith('go to ')) {
-          // For title navigation, wait for a pause
-          titleNavigationTimeout.current = setTimeout(() => {
-            const searchPhrase = command.slice(6); // Remove "go to " from the start
-            
-            // Don't process if it's a navigation command
-            if (searchPhrase === 'next' || 
-                searchPhrase === 'next slide' || 
-                searchPhrase === 'previous' || 
-                searchPhrase === 'previous slide' ||
-                searchPhrase === 'back') {
-              return;
-            }
-
-            const words: string[] = searchPhrase.split(' ');
-            const matchedTitle = slides.find(slide => {
-              const titleWords: string[] = slide.title.toLowerCase().split(' ');
-              // Only match if all words of the title appear in sequence
-              for (let i = 0; i < titleWords.length; i++) {
-                const position = words.indexOf(titleWords[i]);
-                if (position === -1) return false;
-                
-                // Check if the subsequent words match
-                for (let j = 1; j < titleWords.length - i; j++) {
-                  if (words[position + j] !== titleWords[i + j]) {
-                    return false;
-                  }
-                }
-                return true;
-              }
-              return false;
-            });
-
-            if (matchedTitle) {
-              console.log('Navigating to:', matchedTitle.title);
-              handleNavigateToTitle(matchedTitle.title);
-            }
-          }, 1000); // Wait 1 second for more context
-        }
-      };
-
-      recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.log('Recognition error:', event.error);
-        setError(`Speech recognition error: ${event.error}`);
-        setIsListening(false);
-      };
-
-      recognitionInstance.onend = () => {
-        console.log('Recognition ended, isListening:', isListening);
-        if (isListening) {
-          try {
-            recognitionInstance.start();
-            console.log('Recognition restarted');
-          } catch (err) {
-            console.error('Failed to restart recognition:', err);
-            setError('Failed to restart voice recognition');
-            setIsListening(false);
-          }
-        }
-      };
-
-      recognitionRef.current = recognitionInstance;
-
-      return () => {
-        if (titleNavigationTimeout.current) {
-          clearTimeout(titleNavigationTimeout.current);
-        }
-        recognitionInstance.stop();
-      };
+  const setTemporaryError = useCallback((errorMessage: string) => {
+    setError(errorMessage);
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
     }
-  }, [isSupported]);
-
-  const startListening = useCallback(() => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-        setError(null);
-      } catch (err) {
-        setError('Failed to start voice recognition');
-        setIsListening(false);
-      }
-    }
-  }, []);
-
-  const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    }
+    errorTimeoutRef.current = setTimeout(() => {
+      setError(null);
+    }, 3000);
   }, []);
 
   const navigateToFirstSlide = useCallback(() => {
     if (nodes.length === 0) {
-      console.log('No nodes available');
-      setError('No slides available');
-      setTimeout(() => setError(null), 2000);
+      setTemporaryError('No slides available');
       return;
     }
 
@@ -349,12 +160,10 @@ export const useVoiceNavigation = ({ nodes, currentNodeId, setCurrentNodeId }: U
       const leftmostPos = leftmost.position || { x: Infinity, y: Infinity };
       const currentPos = current.position || { x: Infinity, y: Infinity };
 
-      // If current node is more left, it should be the new leftmost
       if (currentPos.x < leftmostPos.x) {
         return current;
       }
       
-      // If they're in the same column (within tolerance) and current is higher, it should be the new leftmost
       if (Math.abs(currentPos.x - leftmostPos.x) <= 50 && currentPos.y < leftmostPos.y) {
         return current;
       }
@@ -362,11 +171,276 @@ export const useVoiceNavigation = ({ nodes, currentNodeId, setCurrentNodeId }: U
       return leftmost;
     }, candidateNodes[0]);
 
-    console.log('Moving to leftmost-top node:', firstNode.id, 'Has no incoming edges:', nodesWithNoIncoming.includes(firstNode));
+    console.log('Moving to leftmost-top node:', firstNode.id);
     currentIndex.current = 0;
     currentNodeRef.current = firstNode.id;
     setCurrentNodeId(firstNode.id);
-  }, [nodes, setCurrentNodeId]);
+  }, [nodes, setTemporaryError, setCurrentNodeId]);
+
+  const handleFirstSlide = useCallback(() => {
+    navigateToFirstSlide();
+  }, [navigateToFirstSlide]);
+
+  const processCommand = useCallback((command: string) => {
+    const now = Date.now();
+    
+    // More strict debouncing - ignore commands within 1.5 seconds
+    if (lastCommandRef.current && 
+        now - lastCommandRef.current.timestamp < 1500) {
+      console.log('Debouncing command:', command);
+      return;
+    }
+    
+    lastCommandRef.current = { command, timestamp: now };
+    console.log('Processing command:', command);
+
+    // Wait for a small delay to ensure state updates have propagated
+    setTimeout(() => {
+      if (command.includes('next')) {
+        console.log('Executing next command');
+        handleNextSlide();
+      } else if (command.includes('previous') || command.includes('back')) {
+        handlePreviousSlide();
+      } else if (command.includes('restart')) {
+        handleFirstSlide();
+      } else if (command.includes('go to')) {
+        const targetTitle = command.replace('go to', '').trim();
+        console.log('Navigating to slide:', targetTitle);
+        handleNavigateToTitle(targetTitle);
+      } else if (command.startsWith('change font to ')) {
+        const font = command.replace('change font to ', '').trim();
+        const requestedFont = Object.entries(SUPPORTED_FONTS)
+          .find(([key]) => font.includes(key.toLowerCase()));
+        if (requestedFont) {
+          setFontFamily(requestedFont[1] as FontFamily);
+        }
+      }
+    }, 100);
+  }, [handleNextSlide, handlePreviousSlide, handleFirstSlide, handleNavigateToTitle, setFontFamily]);
+
+  useEffect(() => {
+    if (isSupported) {
+      if (!recognitionRef.current) {
+        recognitionRef.current = new window.webkitSpeechRecognition();
+        const recognition = recognitionRef.current;
+        
+        recognition.continuous = true;
+        recognition.interimResults = false; // Changed to false to reduce duplicate results
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          const results = event.results;
+          const lastResult = results[results.length - 1];
+          if (lastResult) {
+            const command = lastResult[0].transcript.toLowerCase().trim();
+            console.log('Raw command:', command);
+            processCommand(command);
+          }
+        };
+
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+          console.log('Recognition error:', event.error);
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            setTemporaryError(`Speech recognition error: ${event.error}`);
+            setIsListening(false);
+            if (recognitionRef.current) {
+              recognitionRef.current.stop();
+            }
+          }
+        };
+
+        recognition.onstart = () => {
+          console.log('Recognition started');
+          setIsListening(true);
+        };
+
+        recognition.onend = () => {
+          console.log('Recognition ended');
+          setIsListening(false);
+        };
+      }
+    }
+  }, [isSupported, processCommand]);
+
+  // Separate useEffect for index tracking
+  useEffect(() => {
+    currentIndex.current = nodes.findIndex(node => node.id === currentNodeId);
+    currentNodeRef.current = currentNodeId;
+    console.log('Current index updated to:', currentIndex.current, 'for node:', currentNodeId);
+  }, [currentNodeId, nodes]);
+
+  const slides = nodes.map(node => ({
+    title: node.data?.label || '',
+    id: node.id
+  }));
+
+  const handleVoiceCommand = (command: string) => {
+    if (command.includes('restart')) {
+      handleFirstSlide();
+    } else if (command.includes('next')) {
+      handleNextSlide();
+    } else if (command.includes('previous') || command.includes('back')) {
+      handlePreviousSlide();
+    } else if (command.includes('go to')) {
+      const match = command.match(/go to (.*)/i);
+      if (match) {
+        const targetTitle = match[1].toLowerCase();
+        setTimeout(() => {
+          handleNavigateToTitle(targetTitle);
+        }, 1000);
+      }
+    } else if (command.startsWith('change font to ') || command.startsWith('set font to ')) {
+      const fontMatch = command.match(/(?:change|set) font to (.*)/i);
+      if (fontMatch && fontMatch[1]) {
+        const font = fontMatch[1].trim();
+        const requestedFont = Object.entries(SUPPORTED_FONTS)
+          .find(([key]) => font.includes(key.toLowerCase()));
+
+        if (requestedFont) {
+          console.log('Changing font to:', requestedFont[1]);
+          setFontFamily(requestedFont[1] as FontFamily);
+          // Apply font to buttons
+          document.querySelectorAll('button').forEach(button => {
+            button.style.fontFamily = requestedFont[1];
+          });
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.log('Speech recognition not supported');
+      return;
+    }
+
+    const recognitionInstance = new SpeechRecognition();
+    recognitionInstance.continuous = false;
+    recognitionInstance.interimResults = false;
+
+    recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = event.results[0][0].transcript.toLowerCase();
+      console.log('Command:', transcript);
+      handleVoiceCommand(transcript);
+    };
+
+    setRecognition(recognitionInstance);
+  }, []);
+
+  const startListening = useCallback(() => {
+    if (!('webkitSpeechRecognition' in window)) {
+      console.log('Speech recognition not supported');
+      return;
+    }
+
+    // Prevent starting if already listening
+    if (isListening) {
+      console.log('Already listening, ignoring start request');
+      return;
+    }
+
+    try {
+      // Always create a new instance when starting
+      console.log('Creating new recognition instance');
+      const SpeechRecognition = window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        console.log('Recognition started');
+        setIsListening(true);
+      };
+
+      recognition.onend = () => {
+        console.log('Recognition ended');
+        // Only restart if we're still supposed to be listening
+        if (isListening && recognitionRef.current === recognition) {
+          console.log('Scheduling restart...');
+          setTimeout(() => {
+            if (isListening && recognitionRef.current === recognition) {
+              console.log('Restarting recognition...');
+              try {
+                recognition.start();
+              } catch (error) {
+                console.error('Failed to restart recognition:', error);
+                setIsListening(false);
+                recognitionRef.current = null;
+              }
+            }
+          }, 100);
+        }
+      };
+
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.log('Recognition error:', event.error);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setTemporaryError(`Speech recognition error: ${event.error}`);
+          setIsListening(false);
+          recognitionRef.current = null;
+        }
+      };
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        const results = event.results;
+        const lastResult = results[results.length - 1];
+        if (lastResult) {
+          const command = lastResult[0].transcript.toLowerCase().trim();
+          console.log('Raw command:', command);
+          processCommand(command);
+        }
+      };
+
+      console.log('Starting recognition');
+      recognition.start();
+    } catch (err) {
+      console.error('Error starting recognition:', err);
+      setIsListening(false);
+      recognitionRef.current = null;
+    }
+  }, [isListening, processCommand]);
+
+  const stopListening = useCallback(() => {
+    if (!isListening) {
+      console.log('Already stopped, ignoring stop request');
+      return;
+    }
+
+    console.log('Stopping recognition manually');
+    setIsListening(false);
+    
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+  }, [isListening]);
+
+  // Add keyboard shortcuts effect
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Space to toggle
+      if (event.code === 'Space' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault(); // Prevent page scrolling
+        console.log(`${isListening ? 'Stopping' : 'Starting'} recognition via spacebar`);
+        if (isListening) {
+          stopListening();
+        } else {
+          startListening();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [isListening, startListening, stopListening]);
 
   return {
     isListening,
@@ -376,6 +450,7 @@ export const useVoiceNavigation = ({ nodes, currentNodeId, setCurrentNodeId }: U
     error,
     handleNextSlide,
     handlePreviousSlide,
+    handleFirstSlide,
     handleNavigateToTitle,
     slides
   };

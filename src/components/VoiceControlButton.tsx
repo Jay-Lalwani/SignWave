@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '../context/ThemeContext';
 
 interface VoiceControlButtonProps {
   onNavigateNext?: () => void;
@@ -19,6 +20,8 @@ export const VoiceControlButton: React.FC<VoiceControlButtonProps> = ({
   isSupported,
   error
 }) => {
+  const { fontFamily, setFontFamily } = useTheme();
+
   if (!isSupported) {
     console.log('Voice navigation is not supported');
     return null;
@@ -27,7 +30,7 @@ export const VoiceControlButton: React.FC<VoiceControlButtonProps> = ({
   console.log('Voice control state:', { isListening, isSupported, error });
 
   return (
-    <div>
+    <div style={{ fontFamily }}>
       <button
         type="button"
         onClick={() => isListening ? stopListening() : startListening()}
