@@ -18,24 +18,26 @@
 
 .App-header {
   background-color: #282c34;
-  padding: 1rem;
+  padding: 20px;
   display: flex;
-  justify-content: flex-end;
+  gap: 10px;
   align-items: center;
+  justify-content: center;
 }
 
 .App-header button {
-  background: #61dafb;
+  background-color: #4a90e2;
+  color: white;
   border: none;
-  padding: 0.5rem 1rem;
+  padding: 10px 20px;
   border-radius: 4px;
-  color: #282c34;
-  font-weight: bold;
   cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
 }
 
 .App-header button:hover {
-  background: #4fa8c7;
+  background-color: #357abd;
 }
 
 .App-link {
@@ -53,6 +55,5 @@
 
 main {
   flex: 1;
-  background: #f0f0f0;
   position: relative;
 }
