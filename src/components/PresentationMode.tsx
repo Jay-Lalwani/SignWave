@@ -4,6 +4,8 @@ import GestureRecognizer, { GestureResult } from './GestureRecognizer';
 import { VoiceControlButton } from './VoiceControlButton';
 import { useVoiceNavigation } from '../hooks/useVoiceNavigation';
 import { useTheme } from '../context/ThemeContext';
+import FingerCursor from './FingerCursor';
+import CanvasPointer from './CanvasPointer';
 
 type Props = {
   workflow: {
@@ -32,9 +34,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomPoint, setZoomPoint] = useState<{ x: number; y: number } | null>(null);
   const zoomAnimationRef = useRef<number>();
-  const MIN_ZOOM = 1;
-  const MAX_ZOOM = 4;
-  const ZOOM_SPEED = 0.05;
+  const [cursorFollow, setCursorFollow] = useState(false);
   const [thresholds, setThresholds] = useState<GestureThresholds>(() => {
     try {
       const saved = localStorage.getItem(THRESHOLDS_STORAGE_KEY);
@@ -57,7 +57,6 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [apiResponse, setApiResponse] = useState<any>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const SCRUB_AMOUNT = 5; // seconds to scrub forward/backward
   const PLAY_PAUSE_DELAY = 1000; // 1 second delay between play/pause gestures
   const lastPlayPauseTime = useRef<number>(0);
   const { fontFamily, setFontFamily } = useTheme();
@@ -87,6 +86,14 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     console.log('Font family changed:', fontFamily);
   }, [fontFamily]);
 
+  // Derive pointer mode from the current node; default to "laser"
+  const pointerMode = currentNode?.data?.pointerMode || "laser";
+
+  // Get the current scrub amount or use default
+  const getScrubAmount = useCallback(() => {
+    return currentNode?.data?.scrubAmount || 5;
+  }, [currentNode]);
+
   // Handle continuous zoom
   useEffect(() => {
     return () => {
@@ -96,19 +103,29 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     };
   }, []);
 
+  const getZoomLimits = useCallback(() => {
+    if (!currentNode?.data) return { min: 1, max: 4 };
+    return {
+      min: currentNode.data.minZoom || 1,
+      max: currentNode.data.maxZoom || 4
+    };
+  }, [currentNode]);
+
   const handleZoom = useCallback((direction: 'in' | 'out') => {
     if (zoomAnimationRef.current) {
       cancelAnimationFrame(zoomAnimationRef.current);
     }
 
+    const { min, max } = getZoomLimits();
+
     const animate = () => {
       setZoomLevel(current => {
         const newZoom = direction === 'in' 
-          ? Math.min(current + ZOOM_SPEED, MAX_ZOOM)
-          : Math.max(current - ZOOM_SPEED, MIN_ZOOM);
+          ? Math.min(current + 0.05, max)
+          : Math.max(current - 0.05, min);
         
-        if ((direction === 'in' && newZoom < MAX_ZOOM) || 
-            (direction === 'out' && newZoom > MIN_ZOOM)) {
+        if ((direction === 'in' && newZoom < max) || 
+            (direction === 'out' && newZoom > min)) {
           zoomAnimationRef.current = requestAnimationFrame(animate);
         }
         
@@ -117,16 +134,24 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     };
 
     zoomAnimationRef.current = requestAnimationFrame(animate);
-  }, []);
+  }, [getZoomLimits]);
 
   const handleGesture = useCallback((result: GestureResult) => {
-    // Find edges that start from current node
-    const possibleTransitions = workflow.edges.filter(e => 
-      e.source === currentNodeId && 
+    // Toggle pointer mode based on configurable gestures
+    if (currentNode?.data?.pointerStartGesture && result.gesture === currentNode.data.pointerStartGesture) {
+      setCursorFollow(true);
+      return;
+    } else if (currentNode?.data?.pointerStopGesture && result.gesture === currentNode.data.pointerStopGesture) {
+      setCursorFollow(false);
+      return;
+    }
+  
+    // Existing logic for transitions and video controls…
+    const possibleTransitions = workflow.edges.filter(e =>
+      e.source === currentNodeId &&
       e.data?.gesture === result.gesture
     );
     
-    // Handle video control gestures
     if (currentNode?.data?.type === 'video' && videoRef.current) {
       if (result.gesture === currentNode.data.playPauseGesture) {
         const now = Date.now();
@@ -140,21 +165,22 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
         }
         return;
       } else if (result.gesture === currentNode.data.scrubForwardGesture) {
+        const scrubAmount = getScrubAmount();
         videoRef.current.currentTime = Math.min(
-          videoRef.current.currentTime + SCRUB_AMOUNT,
+          videoRef.current.currentTime + scrubAmount,
           videoRef.current.duration
         );
         return;
       } else if (result.gesture === currentNode.data.scrubBackwardGesture) {
+        const scrubAmount = getScrubAmount();
         videoRef.current.currentTime = Math.max(
-          videoRef.current.currentTime - SCRUB_AMOUNT,
+          videoRef.current.currentTime - scrubAmount,
           0
         );
         return;
       }
     }
-
-    // Handle zoom gestures
+    
     if (currentNode?.data.zoomPoint) {
       if (result.gesture === currentNode.data.zoomInGesture) {
         setZoomPoint(currentNode.data.zoomPoint);
@@ -166,15 +192,14 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
         return;
       }
     }
-
-    // Handle transitions
+  
+    // Handle node transitions if a matching edge is found.
     if (possibleTransitions.length > 0) {
-      // Reset zoom when transitioning
       setZoomLevel(1);
       setZoomPoint(null);
       setCurrentNodeId(possibleTransitions[0].target);
     }
-  }, [currentNodeId, workflow.edges, currentNode, handleZoom]);
+  }, [currentNodeId, workflow.edges, currentNode, handleZoom, getScrubAmount]);
 
   const handleCalibrationComplete = useCallback(() => {
     setIsCalibrating(false);
@@ -423,19 +448,32 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
           )}
         </div>
 
-        {!isCalibrating && (
+      {!isCalibrating && (
+        <div style={{ 
+          width: '100%', 
+          height: '100%', 
+          display: 'flex', 
+          flexDirection: 'column',
+          alignItems: 'center', 
+          justifyContent: 'center',
+          padding: '20px',
+          overflow: 'hidden'
+        }}>
           <div style={{ 
-            width: '100%', 
-            height: '100%', 
-            display: 'flex', 
-            flexDirection: 'column',
-            alignItems: 'center', 
-            justifyContent: 'center',
-            padding: '20px',
-            overflow: 'hidden'
+            fontSize: '2em',
+            marginBottom: '20px',
+            transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+            transformOrigin: zoomPoint 
+              ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+              : 'center center',
+            transition: 'transform 0.1s ease-out'
           }}>
-            <div style={{ 
-              fontSize: '2em',
+            {currentNode?.data?.label || 'No content'}
+          </div>
+          {currentNode?.data?.type === 'image' ? (
+            <div style={{
+              maxWidth: '800px',
+              width: '100%',
               marginBottom: '20px',
               transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
               transformOrigin: zoomPoint 
@@ -443,139 +481,262 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                 : 'center center',
               transition: 'transform 0.1s ease-out'
             }}>
-              {currentNode?.data?.label || 'No content'}
+              <img 
+                src={currentNode.data.url} 
+                alt={currentNode.data.label}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}
+              />
             </div>
-            {currentNode?.data?.type === 'image' ? (
-              <div style={{
-                maxWidth: '800px',
-                width: '100%',
-                marginBottom: '20px',
-                transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
-                transformOrigin: zoomPoint 
-                  ? `${zoomPoint.x}% ${zoomPoint.y}%` 
-                  : 'center center',
-                transition: 'transform 0.1s ease-out'
-              }}>
-                <img 
-                  src={currentNode.data.url} 
-                  alt={currentNode.data.label}
-                  style={{
-                    width: '100%',
-                    height: 'auto',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}
-                />
-              </div>
-            ) : currentNode?.data?.type === 'video' ? (
-              <div style={{
-                maxWidth: '800px',
-                width: '100%',
-                marginBottom: '20px',
-                transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
-                transformOrigin: zoomPoint 
-                  ? `${zoomPoint.x}% ${zoomPoint.y}%` 
-                  : 'center center',
-                transition: 'transform 0.1s ease-out'
-              }}>
-                <video
-                  ref={videoRef}
-                  src={currentNode.data.videoUrl}
-                  controls
-                  autoPlay={currentNode.data.autoplay}
-                  loop={currentNode.data.loop}
-                  style={{
-                    width: '100%',
-                    height: 'auto',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}
-                />
-                {showGestures}
-              </div>
-            ) : currentNode?.data?.type === 'api' ? (
-              <>
-                {apiError && (
-                  <div style={{
-                    color: '#ff0072',
-                    padding: '10px',
-                    background: '#fff0f4',
-                    borderRadius: '4px',
-                    marginTop: '10px',
-                    maxWidth: '800px',
-                    width: '100%'
-                  }}>
-                    <strong>Error:</strong> {apiError}
-                  </div>
-                )}
-                {apiResponse && (
-                  <div style={{
-                    marginTop: '20px',
-                    maxWidth: '800px',
-                    width: '100%'
-                  }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>API Response:</div>
-                    <pre style={{
-                      background: '#f8f8f8',
-                      padding: '15px',
-                      borderRadius: '8px',
-                      overflow: 'auto',
-                      maxHeight: '300px'
-                    }}>
-                      {JSON.stringify(apiResponse, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={{ 
-                fontSize: '1.2em',
-                marginBottom: '20px',
-                whiteSpace: 'pre-wrap',
-                maxWidth: '800px',
-                textAlign: 'left'
-              }}>
-                {currentNode?.data?.content}
-              </div>
-            )}
-            {showGestures && (
-              <div style={{ 
-                marginTop: '20px', 
-                padding: '15px',
-                background: 'rgba(240,240,240,0.9)',
-                borderRadius: '8px',
-                maxWidth: '400px',
-                width: '100%'
-              }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#666' }}>
-                  Available Gestures:
+          ) : currentNode?.data?.type === 'video' ? (
+            <div style={{
+              maxWidth: '800px',
+              width: '100%',
+              marginBottom: '20px',
+              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+              transformOrigin: zoomPoint 
+                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                : 'center center',
+              transition: 'transform 0.1s ease-out'
+            }}>
+              <video
+                ref={videoRef}
+                src={currentNode.data.videoUrl}
+                controls
+                autoPlay={currentNode.data.autoplay}
+                loop={currentNode.data.loop}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}
+              />
+              {showGestures}
+            </div>
+          ) : currentNode?.data?.type === 'api' ? (
+            <>
+              {apiError && (
+                <div style={{
+                  color: '#ff0072',
+                  padding: '10px',
+                  background: '#fff0f4',
+                  borderRadius: '4px',
+                  marginTop: '10px',
+                  maxWidth: '800px',
+                  width: '100%'
+                }}>
+                  <strong>Error:</strong> {apiError}
                 </div>
-                {outgoingEdges.map(edge => (
-                  <div key={edge.id} style={{ 
-                    margin: '8px 0',
-                    padding: '8px',
-                    background: 'white',
-                    borderRadius: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
+              )}
+              {apiResponse && (
+                <div style={{
+                  marginTop: '20px',
+                  maxWidth: '800px',
+                  width: '100%'
+                }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>API Response:</div>
+                  <pre style={{
+                    background: '#f8f8f8',
+                    padding: '15px',
+                    borderRadius: '8px',
+                    overflow: 'auto',
+                    maxHeight: '300px'
                   }}>
-                    <span style={{ color: '#ff0072', fontWeight: 'bold' }}>
-                      {edge.data?.gesture}
-                    </span>
-                    <span style={{ color: '#666' }}>→</span>
-                    <span>{workflow.nodes.find(n => n.id === edge.target)?.data.label}</span>
-                  </div>
-                ))}
+                    {JSON.stringify(apiResponse, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ 
+              fontSize: '1.2em',
+              marginBottom: '20px',
+              whiteSpace: 'pre-wrap',
+              maxWidth: '800px',
+              textAlign: 'left'
+            }}>
+              {currentNode?.data?.content}
+            </div>
+          )}
+          {showGestures && (
+            <div style={{ 
+              marginTop: '20px', 
+              padding: '15px',
+              background: 'rgba(240,240,240,0.9)',
+              borderRadius: '8px',
+              maxWidth: '400px',
+              width: '100%'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#666' }}>
+                Available Gestures:
               </div>
-            )}
-          </div>
-        )}
-      </div>
+              {outgoingEdges.map(edge => (
+                <div key={edge.id} style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#ff0072', fontWeight: 'bold' }}>
+                    {edge.data?.gesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>{workflow.nodes.find(n => n.id === edge.target)?.data.label}</span>
+                </div>
+              ))}
 
-      {error && <div className="error">Error: {error}</div>}
+              {currentNode?.data?.pointerStartGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                    {currentNode.data.pointerStartGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Start {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                </div>
+              )}
+              {currentNode?.data?.pointerStopGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                    {currentNode.data.pointerStopGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Stop {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                </div>
+              )}
+
+              {currentNode?.data?.zoomInGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
+                    {currentNode.data.zoomInGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Zoom In</span>
+                </div>
+              )}
+              {currentNode?.data?.zoomOutGesture && (
+                <div style={{ 
+                  margin: '8px 0',
+                  padding: '8px',
+                  background: 'white',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
+                    {currentNode.data.zoomOutGesture}
+                  </span>
+                  <span style={{ color: '#666' }}>→</span>
+                  <span>Zoom Out</span>
+                </div>
+              )}
+
+              {currentNode?.data?.type === 'video' && (
+                <>
+                  {currentNode.data.playPauseGesture && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                        {currentNode.data.playPauseGesture}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Play/Pause Video</span>
+                    </div>
+                  )}
+                  {currentNode.data.scrubForwardGesture && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                        {currentNode.data.scrubForwardGesture}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Fast Forward</span>
+                    </div>
+                  )}
+                  {currentNode.data.scrubBackwardGesture && (
+                    <div style={{ 
+                      margin: '8px 0',
+                      padding: '8px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                        {currentNode.data.scrubBackwardGesture}
+                      </span>
+                      <span style={{ color: '#666' }}>→</span>
+                      <span>Rewind</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {/* Render the pointer overlay if enabled.
+          Use the pointer mode from the current node: "laser" shows FingerCursor; "canvas" shows CanvasPointer */}
+      {cursorFollow && (pointerMode === "laser" ? 
+        <FingerCursor 
+          color={currentNode?.data?.pointerColor || '#ff0000'} 
+          size={currentNode?.data?.pointerSize || 10} 
+        /> : 
+        <CanvasPointer 
+          color={currentNode?.data?.pointerColor || '#ff0000'} 
+          size={currentNode?.data?.pointerSize || 10} 
+        />
+      )}
     </div>
   );
-};
+  </div>
+)};
 
-export default PresentationMode; 
+export default PresentationMode;

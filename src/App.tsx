@@ -2,6 +2,10 @@ import React, { useState, useCallback, useEffect } from 'react';
 import './App.css';
 import WorkflowEditor, { WorkflowData } from './components/WorkflowEditor';
 import PresentationMode from './components/PresentationMode';
+import GeneratePresentationModal from './components/GeneratePresentationModal';
+import { generatePresentationWorkflow } from './components/GeneratePresentationWorkflow';
+import { generateProjectImage } from './components/GenerateProjectImage';
+import openai from 'openai';
 
 type Mode = 'edit' | 'present';
 
@@ -24,7 +28,6 @@ function App() {
     if (!saved) return defaultWorkflow;
     try {
       const parsed = JSON.parse(saved);
-      // Ensure the parsed data has the correct structure
       if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
         return parsed;
       }
@@ -35,7 +38,6 @@ function App() {
     }
   });
 
-  // Save workflow whenever it changes
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(workflow));
@@ -48,12 +50,44 @@ function App() {
     setWorkflow(newWorkflow);
   }, []);
 
+  // Function to update image nodes by generating a project image using the node's label as prompt.
+  async function updateImageNodes(currentWorkflow: WorkflowData, client: any): Promise<WorkflowData> {
+    const updatedNodes = await Promise.all(
+      currentWorkflow.nodes.map(async (node) => {
+        if (node.type === "imageNode" && node.data.label) {
+          try {
+            const imageUrl = await generateProjectImage(node.data.content, client);
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                url: imageUrl,
+              },
+            };
+          } catch (error) {
+            console.error(`Error generating image for node ${node.id}:`, error);
+            return node;
+          }
+        }
+        return node;
+      })
+    );
+    return { ...currentWorkflow, nodes: updatedNodes };
+  }
+
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+
   return (
     <div className="App">
       <header className="App-header">
         <button onClick={() => setMode(mode === 'edit' ? 'present' : 'edit')}>
           Switch to {mode === 'edit' ? 'Presentation' : 'Edit'} Mode
         </button>
+        {mode === 'edit' && (
+          <button onClick={() => setShowGenerateModal(true)}>
+            Generate Presentation
+          </button>
+        )}
       </header>
       <main>
         {mode === 'edit' ? (
@@ -62,6 +96,34 @@ function App() {
           <PresentationMode workflow={workflow} />
         )}
       </main>
+      {showGenerateModal && (
+        <GeneratePresentationModal
+          onGenerate={async (prompt) => {
+            const client = new openai.OpenAI({
+              baseURL: "https://api.ai.it.cornell.edu",
+              apiKey: "sk-ZmTOaxcK9_My_f-kiuT5sQ",
+              dangerouslyAllowBrowser: true,
+            });
+            try {
+              const generatedWorkflow = await generatePresentationWorkflow(prompt, client);
+              if (generatedWorkflow && Array.isArray(generatedWorkflow.nodes) && Array.isArray(generatedWorkflow.edges)) {
+                const modalElement = document.querySelector('textarea')?.closest('div')?.querySelector('p');
+                if (modalElement) modalElement.textContent = 'Generating Images...';
+                await new Promise(resolve => setTimeout(resolve, 100)); // Let the UI update
+                const updatedWorkflow = await updateImageNodes(generatedWorkflow, client);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedWorkflow));
+                setWorkflow(updatedWorkflow);
+              } else {
+                console.error("Generated workflow does not match expected format.");
+              }
+            } catch (error) {
+              console.error("Error generating presentation:", error);
+            }
+            setShowGenerateModal(false);
+          }}
+          onClose={() => setShowGenerateModal(false)}
+        />
+      )}
     </div>
   );
 }

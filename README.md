@@ -10,17 +10,19 @@ git clone https://github.com/Jay-Lalwani/SignWave.git
 cd SignWave
 ```
 
-2. Install dependencies:
+2. Add your OpenAI API key to src/components/GeneratePresentationWorkflow.js
+
+3. Install dependencies:
 ```bash
 yarn install
 ```
 
-3. Start the development server:
+4. Start the development server:
 ```bash
 yarn start
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Available Commands
 
