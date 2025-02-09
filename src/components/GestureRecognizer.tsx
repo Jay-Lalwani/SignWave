@@ -150,15 +150,6 @@ const GestureRecognizerComponent: React.FC<Props> = ({
               const landmarks = gestureRecognitionResult.landmarks?.[0];
               let handPosition;
 
-              // Log all detected gestures for debugging
-              console.log('Raw gesture detection:', {
-                gesture: topGesture.categoryName,
-                score: topGesture.score,
-                isCalibrating,
-                hasLandmarks: !!landmarks,
-                timestamp: Date.now()
-              });
-
               if (landmarks) {
                 handPosition = {
                   x: landmarks[0].x * window.innerWidth,
