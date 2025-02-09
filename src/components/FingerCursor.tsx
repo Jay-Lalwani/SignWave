@@ -40,10 +40,6 @@ const FingerCursor: React.FC<Props> = ({ color = '#ff0000', size = 10 }) => {
     };
 
     initHandLandmarker();
-
-    return () => {
-      handLandmarker?.close();
-    };
   }, []);
 
   // Process video frames to detect the hand and update the cursor position with smoothing.
@@ -74,6 +70,14 @@ const FingerCursor: React.FC<Props> = ({ color = '#ff0000', size = 10 }) => {
 
     detectHand();
     return () => cancelAnimationFrame(animationFrameId);
+  }, [handLandmarker]);
+
+  useEffect(() => {
+    return () => {
+      if (handLandmarker) {
+        handLandmarker.close();
+      }
+    };
   }, [handLandmarker]);
 
   return (

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Webcam from 'react-webcam';
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 
@@ -43,11 +43,16 @@ const CanvasPointer: React.FC<Props> = ({ color = '#ff0000', size = 10 }) => {
     };
 
     initLandmarker();
-
-    return () => {
-      handLandmarker?.close();
-    };
   }, []);
+
+  // Separate cleanup effect
+  useEffect(() => {
+    return () => {
+      if (handLandmarker) {
+        handLandmarker.close();
+      }
+    };
+  }, [handLandmarker]);
 
   // Update the canvas size when the window is resized.
   useEffect(() => {

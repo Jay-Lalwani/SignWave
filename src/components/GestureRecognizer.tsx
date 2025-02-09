@@ -188,7 +188,7 @@ const GestureRecognizerComponent: React.FC<Props> = ({
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [isLoading, onGestureDetected, isCalibrating, calibrationStep, onCalibrationComplete, isPaused]);
+  }, [isLoading, onGestureDetected, isCalibrating, calibrationStep, onCalibrationComplete, isPaused, gestureThresholds, onThresholdsUpdate]);
 
   if (!showWebcam && !isCalibrating) {
     return null;
