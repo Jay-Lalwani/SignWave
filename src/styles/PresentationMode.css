@@ -1,0 +1,17 @@
+.presentation-mode {
+  font-family: inherit;
+}
+
+.presentation-content {
+  font-family: inherit;
+}
+
+/* Apply font family to all text elements */
+.presentation-mode h1,
+.presentation-mode h2,
+.presentation-mode h3,
+.presentation-mode p,
+.presentation-mode span,
+.presentation-mode div {
+  font-family: inherit;
+} 
