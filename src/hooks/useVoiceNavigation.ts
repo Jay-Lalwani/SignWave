@@ -234,7 +234,7 @@ export const useVoiceNavigation = ({
           if (lastResult) {
             const command = lastResult[0].transcript.toLowerCase().trim();
             console.log('Raw command:', command);
-            processCommand(command);
+            // processCommand(command);
           }
         };
 
@@ -324,7 +324,7 @@ export const useVoiceNavigation = ({
     recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = event.results[0][0].transcript.toLowerCase();
       console.log('Command:', transcript);
-      handleVoiceCommand(transcript);
+      // handleVoiceCommand(transcript);
     };
 
     setRecognition(recognitionInstance);
@@ -393,7 +393,7 @@ export const useVoiceNavigation = ({
         if (lastResult) {
           const command = lastResult[0].transcript.toLowerCase().trim();
           console.log('Raw command:', command);
-          processCommand(command);
+          // processCommand(command);
         }
       };
 
