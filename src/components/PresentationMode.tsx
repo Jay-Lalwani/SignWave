@@ -720,6 +720,41 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
               }}>
                 {currentNode?.data?.content}
               </div>
+            ) : currentNode?.data?.type === 'api' ? (
+              <div style={{ 
+                fontSize: isFullscreen ? '2em' : '1.2em',
+                marginBottom: isFullscreen ? 0 : '20px',
+                whiteSpace: 'pre-wrap',
+                maxWidth: isFullscreen ? '90%' : '800px',
+                width: '100%',
+                height: isFullscreen ? '100vh' : 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: isFullscreen ? 'white' : 'inherit',
+                textAlign: 'center'
+              }}>
+                {apiResponse ? (
+                  <pre style={{
+                    background: isFullscreen ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
+                    padding: '20px',
+                    borderRadius: '8px',
+                    overflow: 'auto',
+                    maxHeight: isFullscreen ? '80vh' : '400px',
+                    width: '100%',
+                    color: isFullscreen ? 'white' : 'inherit'
+                  }}>
+                    {JSON.stringify(apiResponse, null, 2)}
+                  </pre>
+                ) : apiError ? (
+                  <div style={{ color: '#ff0072' }}>
+                    Error: {apiError}
+                  </div>
+                ) : (
+                  <div>Loading API response...</div>
+                )}
+              </div>
             ) : null}
             {showGestures && (
               <div style={{ 
