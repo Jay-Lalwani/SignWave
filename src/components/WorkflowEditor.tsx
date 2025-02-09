@@ -62,6 +62,8 @@ export type SlideNodeData = {
   pointerStopGesture?: string;
   // New field: choose between laser (red dot) or canvas (writing)
   pointerMode?: "laser" | "canvas";
+  // Fullscreen control
+  fullscreenGesture?: string;
 };
 
 const BaseNodeStyle = {
@@ -1371,6 +1373,27 @@ const WorkflowEditor: React.FC<Props> = ({ onWorkflowUpdate, initialWorkflow }) 
               <select
                 value={nodeForm.pointerStopGesture || ''}
                 onChange={(e) => handleNodeFormChange({ pointerStopGesture: e.target.value })}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Select a gesture...</option>
+                {AVAILABLE_GESTURES.map(gesture => (
+                  <option key={gesture} value={gesture}>{gesture.replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
+          </FormSection>
+
+          <FormSection title="Fullscreen Control">
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Fullscreen Toggle Gesture:</label>
+              <select
+                value={nodeForm.fullscreenGesture || ''}
+                onChange={(e) => handleNodeFormChange({ fullscreenGesture: e.target.value })}
                 style={{ 
                   width: '100%', 
                   padding: '8px',

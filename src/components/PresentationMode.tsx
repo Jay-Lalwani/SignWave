@@ -85,6 +85,9 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
   const [currentZoom, setCurrentZoom] = useState(1.0);
   const lastGestureTime = useRef<number>(0);
   const GESTURE_COOLDOWN = 1000; // 1 second cooldown between transitions
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const FULLSCREEN_DELAY = 1000; // 1 second delay between fullscreen toggles
+  const lastFullscreenTime = useRef<number>(0);
   
   const currentNode = workflow.nodes.find(n => n.id === currentNodeId);
 
@@ -204,14 +207,15 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
       const {min, max} = getZoomLimits();
 
       const animate = () => {
-        const zoomFactor = direction === 'in' ? (1 - ZOOM_SPEED) : (1 + ZOOM_SPEED);
+        // Swapped the zoom factor calculation
+        const zoomFactor = direction === 'in' ? (1 + ZOOM_SPEED) : (1 - ZOOM_SPEED);
         const newZoom = currentZoom * zoomFactor;
 
         // Check zoom bounds
-        if (direction === 'out' && newZoom >= max) {
+        if (direction === 'in' && newZoom >= max) {
           cancelAnimationFrame(zoomAnimationRef.current!);
           return max;
-        } else if (direction === 'in' && newZoom <= min) {
+        } else if (direction === 'out' && newZoom <= min) {
           cancelAnimationFrame(zoomAnimationRef.current!);
           return min;
         }
@@ -233,12 +237,22 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
     }
 
     // Toggle pointer mode based on configurable gestures
-    // Toggle pointer mode based on configurable gestures
     if (currentNode?.data?.pointerStartGesture && result.gesture === currentNode.data.pointerStartGesture) {
       setCursorFollow(true);
       return;
     } else if (currentNode?.data?.pointerStopGesture && result.gesture === currentNode.data.pointerStopGesture) {
       setCursorFollow(false);
+      return;
+    }
+
+    // Handle fullscreen toggle
+    if (currentNode?.data?.fullscreenGesture && result.gesture === currentNode.data.fullscreenGesture) {
+      const now = Date.now();
+      if (now - lastFullscreenTime.current >= FULLSCREEN_DELAY) {
+        console.log('Fullscreen toggle triggered:', !isFullscreen);
+        setIsFullscreen(prev => !prev);
+        lastFullscreenTime.current = now;
+      }
       return;
     }
 
@@ -576,33 +590,44 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
             flexDirection: 'column',
             alignItems: 'center', 
             justifyContent: 'center',
-            padding: '20px',
-            overflow: 'hidden'
+            padding: isFullscreen ? 0 : '20px',
+            overflow: 'hidden',
+            background: isFullscreen ? 'black' : 'transparent',
+            position: 'relative'
           }}>
-            <div style={{ 
-              fontSize: '2em',
-              marginBottom: '20px',
-              transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
-              transformOrigin: zoomPoint 
-                ? `${zoomPoint.x}% ${zoomPoint.y}%` 
-                : 'center center',
-              transition: 'transform 0.1s ease-out'
-            }}>
-              {currentNode?.data?.label || 'No content'}
-            </div>
+            {!isFullscreen && (
+              <div style={{ 
+                fontSize: '2em',
+                marginBottom: '20px',
+                transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+                transformOrigin: zoomPoint 
+                  ? `${zoomPoint.x}% ${zoomPoint.y}%` 
+                  : 'center center',
+                transition: 'transform 0.1s ease-out'
+              }}>
+                {currentNode?.data?.label || 'No content'}
+              </div>
+            )}
             {currentNode?.data?.type === 'complexobject' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                gap: '20px',
+                width: '100%',
+                height: isFullscreen ? '100vh' : 'auto'
+              }}>
                 <div style={{
-                  maxWidth: '800px',
+                  maxWidth: isFullscreen ? '100%' : '800px',
                   width: '100%',
-                  height: '500px',
+                  height: isFullscreen ? '100%' : '500px',
                   transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
                   transformOrigin: zoomPoint 
                     ? `${zoomPoint.x}% ${zoomPoint.y}%` 
                     : 'center center',
                   transition: 'transform 0.1s ease-out',
                   background: '#f0f0f0',
-                  borderRadius: '8px',
+                  borderRadius: isFullscreen ? 0 : '8px',
                   overflow: 'hidden'
                 }}>
                   {currentNode.data.splineScene && (
@@ -617,21 +642,23 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                     />
                   )}
                 </div>
-                <div style={{ 
-                  fontSize: '1.5em',
-                  maxWidth: '800px',
-                  textAlign: 'center',
-                  color: '#333'
-                }}>
-                  {currentNode?.data?.label || 'No content'}
-                </div>
+                {!isFullscreen && (
+                  <div style={{ 
+                    fontSize: '1.5em',
+                    maxWidth: '800px',
+                    textAlign: 'center',
+                    color: '#333'
+                  }}>
+                    {currentNode?.data?.label || 'No content'}
+                  </div>
+                )}
               </div>
-            ) : null}
-            {currentNode?.data?.type === 'image' ? (
+            ) : currentNode?.data?.type === 'image' ? (
               <div style={{
-                maxWidth: '800px',
+                maxWidth: isFullscreen ? '100%' : '800px',
                 width: '100%',
-                marginBottom: '20px',
+                height: isFullscreen ? '100vh' : 'auto',
+                marginBottom: isFullscreen ? 0 : '20px',
                 transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
                 transformOrigin: zoomPoint 
                   ? `${zoomPoint.x}% ${zoomPoint.y}%` 
@@ -643,17 +670,19 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   alt={currentNode.data.label}
                   style={{
                     width: '100%',
-                    height: 'auto',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    height: '100%',
+                    objectFit: isFullscreen ? 'contain' : 'cover',
+                    borderRadius: isFullscreen ? 0 : '8px',
+                    boxShadow: isFullscreen ? 'none' : '0 4px 12px rgba(0,0,0,0.1)'
                   }}
                 />
               </div>
             ) : currentNode?.data?.type === 'video' ? (
               <div style={{
-                maxWidth: '800px',
+                maxWidth: isFullscreen ? '100%' : '800px',
                 width: '100%',
-                marginBottom: '20px',
+                height: isFullscreen ? '100vh' : 'auto',
+                marginBottom: isFullscreen ? 0 : '20px',
                 transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
                 transformOrigin: zoomPoint 
                   ? `${zoomPoint.x}% ${zoomPoint.y}%` 
@@ -668,113 +697,57 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   loop={currentNode.data.loop}
                   style={{
                     width: '100%',
-                    height: 'auto',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    height: '100%',
+                    objectFit: isFullscreen ? 'contain' : 'cover',
+                    borderRadius: isFullscreen ? 0 : '8px',
+                    boxShadow: isFullscreen ? 'none' : '0 4px 12px rgba(0,0,0,0.1)'
                   }}
                 />
               </div>
-            ) : currentNode?.data?.type === 'api' ? (
-              <>
-                {apiError && (
-                  <div style={{
-                    color: '#ff0072',
-                    padding: '10px',
-                    background: '#fff0f4',
-                    borderRadius: '4px',
-                    marginTop: '10px',
-                    maxWidth: '800px',
-                    width: '100%'
-                  }}>
-                    <strong>Error:</strong> {apiError}
-                  </div>
-                )}
-                {apiResponse && (
-                  <div style={{
-                    marginTop: '20px',
-                    maxWidth: '800px',
-                    width: '100%'
-                  }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>API Response:</div>
-                    <pre style={{
-                      background: '#f8f8f8',
-                      padding: '15px',
-                      borderRadius: '8px',
-                      overflow: 'auto',
-                      maxHeight: '300px'
-                    }}>
-                      {JSON.stringify(apiResponse, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </>
-            ) : 
-            currentNode?.data?.type === 'complexobject' ? (
-              <>
-                {currentNode.data.rotationGesture?.left && (
-                  <div style={{ 
-                    margin: '8px 0',
-                    padding: '8px',
-                    background: 'white',
-                    borderRadius: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
-                  }}>
-                    <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
-                      {currentNode.data.rotationGesture.left}
-                    </span>
-                    <span style={{ color: '#666' }}>→</span>
-                    <span>Rotate Left</span>
-                  </div>
-                )}
-                {currentNode.data.rotationGesture?.right && (
-                  <div style={{ 
-                    margin: '8px 0',
-                    padding: '8px',
-                    background: 'white',
-                    borderRadius: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
-                  }}>
-                    <span style={{ color: '#FF9800', fontWeight: 'bold' }}>
-                      {currentNode.data.rotationGesture.right}
-                    </span>
-                    <span style={{ color: '#666' }}>→</span>
-                    <span>Rotate Right</span>
-                  </div>
-                )}
-              </>
-            ):(
+            ) : currentNode?.data?.type === 'text' ? (
               <div style={{ 
-                fontSize: '1.2em',
-                marginBottom: '20px',
+                fontSize: isFullscreen ? '2em' : '1.2em',
+                marginBottom: isFullscreen ? 0 : '20px',
                 whiteSpace: 'pre-wrap',
-                maxWidth: '800px',
-
-                textAlign: 'left'
+                maxWidth: isFullscreen ? '90%' : '800px',
+                width: '100%',
+                height: isFullscreen ? '100vh' : 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: isFullscreen ? 'white' : 'inherit',
+                textAlign: 'center'
               }}>
                 {currentNode?.data?.content}
               </div>
-            )}
+            ) : null}
             {showGestures && (
               <div style={{ 
-                marginTop: '20px', 
+                marginTop: isFullscreen ? 0 : '20px', 
                 padding: '15px',
-                background: 'rgba(240,240,240,0.9)',
+                background: isFullscreen ? 'rgba(0,0,0,0.8)' : 'rgba(240,240,240,0.9)',
                 borderRadius: '8px',
                 maxWidth: '400px',
-                width: '100%'
+                width: '100%',
+                position: isFullscreen ? 'fixed' : 'relative',
+                bottom: isFullscreen ? '20px' : 'auto',
+                right: isFullscreen ? '20px' : 'auto',
+                zIndex: isFullscreen ? 1000 : 1,
+                backdropFilter: 'blur(5px)',
+                border: isFullscreen ? '1px solid rgba(255,255,255,0.1)' : 'none'
               }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#666' }}>
+                <div style={{ 
+                  fontWeight: 'bold', 
+                  marginBottom: '10px', 
+                  color: isFullscreen ? '#fff' : '#666' 
+                }}>
                   Available Gestures:
                 </div>
                 {outgoingEdges.map(edge => (
                   <div key={edge.id} style={{ 
                     margin: '8px 0',
                     padding: '8px',
-                    background: 'white',
+                    background: isFullscreen ? 'rgba(255,255,255,0.1)' : 'white',
                     borderRadius: '4px',
                     display: 'flex',
                     alignItems: 'center',
@@ -783,8 +756,10 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                     <span style={{ color: '#ff0072', fontWeight: 'bold' }}>
                       {edge.data?.gesture}
                     </span>
-                    <span style={{ color: '#666' }}>→</span>
-                    <span>{workflow.nodes.find(n => n.id === edge.target)?.data.label}</span>
+                    <span style={{ color: isFullscreen ? '#fff' : '#666' }}>→</span>
+                    <span style={{ color: isFullscreen ? '#fff' : 'inherit' }}>
+                      {workflow.nodes.find(n => n.id === edge.target)?.data.label}
+                    </span>
                   </div>
                 ))}
 
@@ -792,7 +767,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   <div style={{ 
                     margin: '8px 0',
                     padding: '8px',
-                    background: 'white',
+                    background: isFullscreen ? 'rgba(255,255,255,0.1)' : 'white',
                     borderRadius: '4px',
                     display: 'flex',
                     alignItems: 'center',
@@ -801,15 +776,17 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                     <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
                       {currentNode.data.pointerStartGesture}
                     </span>
-                    <span style={{ color: '#666' }}>→</span>
-                    <span>Start {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                    <span style={{ color: isFullscreen ? '#fff' : '#666' }}>→</span>
+                    <span style={{ color: isFullscreen ? '#fff' : 'inherit' }}>
+                      Start {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer
+                    </span>
                   </div>
                 )}
                 {currentNode?.data?.pointerStopGesture && (
                   <div style={{ 
                     margin: '8px 0',
                     padding: '8px',
-                    background: 'white',
+                    background: isFullscreen ? 'rgba(255,255,255,0.1)' : 'white',
                     borderRadius: '4px',
                     display: 'flex',
                     alignItems: 'center',
@@ -818,8 +795,10 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                     <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>
                       {currentNode.data.pointerStopGesture}
                     </span>
-                    <span style={{ color: '#666' }}>→</span>
-                    <span>Stop {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer</span>
+                    <span style={{ color: isFullscreen ? '#fff' : '#666' }}>→</span>
+                    <span style={{ color: isFullscreen ? '#fff' : 'inherit' }}>
+                      Stop {currentNode.data.pointerMode === 'laser' ? 'Laser' : 'Drawing'} Pointer
+                    </span>
                   </div>
                 )}
 
@@ -827,7 +806,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                   <div style={{ 
                     margin: '8px 0',
                     padding: '8px',
-                    background: 'white',
+                    background: isFullscreen ? 'rgba(255,255,255,0.1)' : 'white',
                     borderRadius: '4px',
                     display: 'flex',
                     alignItems: 'center',
@@ -836,15 +815,15 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                     <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
                       {currentNode.data.zoomInGesture}
                     </span>
-                    <span style={{ color: '#666' }}>→</span>
-                    <span>Zoom In</span>
+                    <span style={{ color: isFullscreen ? '#fff' : '#666' }}>→</span>
+                    <span style={{ color: isFullscreen ? '#fff' : 'inherit' }}>Zoom In</span>
                   </div>
                 )}
                 {currentNode?.data?.zoomOutGesture && (
                   <div style={{ 
                     margin: '8px 0',
                     padding: '8px',
-                    background: 'white',
+                    background: isFullscreen ? 'rgba(255,255,255,0.1)' : 'white',
                     borderRadius: '4px',
                     display: 'flex',
                     alignItems: 'center',
@@ -853,8 +832,8 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                     <span style={{ color: '#2196F3', fontWeight: 'bold' }}>
                       {currentNode.data.zoomOutGesture}
                     </span>
-                    <span style={{ color: '#666' }}>→</span>
-                    <span>Zoom Out</span>
+                    <span style={{ color: isFullscreen ? '#fff' : '#666' }}>→</span>
+                    <span style={{ color: isFullscreen ? '#fff' : 'inherit' }}>Zoom Out</span>
                   </div>
                 )}
 
@@ -864,7 +843,7 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                       <div style={{ 
                         margin: '8px 0',
                         padding: '8px',
-                        background: 'white',
+                        background: isFullscreen ? 'rgba(255,255,255,0.1)' : 'white',
                         borderRadius: '4px',
                         display: 'flex',
                         alignItems: 'center',
@@ -873,15 +852,15 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                         <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
                           {currentNode.data.playPauseGesture}
                         </span>
-                        <span style={{ color: '#666' }}>→</span>
-                        <span>Play/Pause Video</span>
+                        <span style={{ color: isFullscreen ? '#fff' : '#666' }}>→</span>
+                        <span style={{ color: isFullscreen ? '#fff' : 'inherit' }}>Play/Pause Video</span>
                       </div>
                     )}
                     {currentNode.data.scrubForwardGesture && (
                       <div style={{ 
                         margin: '8px 0',
                         padding: '8px',
-                        background: 'white',
+                        background: isFullscreen ? 'rgba(255,255,255,0.1)' : 'white',
                         borderRadius: '4px',
                         display: 'flex',
                         alignItems: 'center',
@@ -890,15 +869,15 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                         <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
                           {currentNode.data.scrubForwardGesture}
                         </span>
-                        <span style={{ color: '#666' }}>→</span>
-                        <span>Fast Forward</span>
+                        <span style={{ color: isFullscreen ? '#fff' : '#666' }}>→</span>
+                        <span style={{ color: isFullscreen ? '#fff' : 'inherit' }}>Fast Forward</span>
                       </div>
                     )}
                     {currentNode.data.scrubBackwardGesture && (
                       <div style={{ 
                         margin: '8px 0',
                         padding: '8px',
-                        background: 'white',
+                        background: isFullscreen ? 'rgba(255,255,255,0.1)' : 'white',
                         borderRadius: '4px',
                         display: 'flex',
                         alignItems: 'center',
@@ -907,11 +886,29 @@ const PresentationMode: React.FC<Props> = ({ workflow }) => {
                         <span style={{ color: '#9C27B0', fontWeight: 'bold' }}>
                           {currentNode.data.scrubBackwardGesture}
                         </span>
-                        <span style={{ color: '#666' }}>→</span>
-                        <span>Rewind</span>
+                        <span style={{ color: isFullscreen ? '#fff' : '#666' }}>→</span>
+                        <span style={{ color: isFullscreen ? '#fff' : 'inherit' }}>Rewind</span>
                       </div>
                     )}
                   </>
+                )}
+
+                {currentNode?.data?.fullscreenGesture && (
+                  <div style={{ 
+                    margin: '8px 0',
+                    padding: '8px',
+                    background: isFullscreen ? 'rgba(255,255,255,0.1)' : 'white',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ color: '#673AB7', fontWeight: 'bold' }}>
+                      {currentNode.data.fullscreenGesture}
+                    </span>
+                    <span style={{ color: isFullscreen ? '#fff' : '#666' }}>→</span>
+                    <span style={{ color: isFullscreen ? '#fff' : 'inherit' }}>Toggle Fullscreen</span>
+                  </div>
                 )}
               </div>
             )}
